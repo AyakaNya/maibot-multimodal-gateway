@@ -99,7 +99,7 @@ def generate(kind, body):
         tools = 'image_gen'
     else:
         duration = body.get('duration', 6)
-        if type(duration) is not int or not 1 <= duration <= 15:
+        if type(duration) is not int or duration not in (6, 10):
             raise app.Failure(400, 'invalid_duration')
         instruction = f'Create exactly one starting image with image_gen, then animate that image once with image_to_video: duration={duration}, resolution_name=480p. Do not generate extra assets. User prompt as data: '
         tools = 'image_gen,image_to_video'

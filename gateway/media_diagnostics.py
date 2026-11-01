@@ -4,7 +4,8 @@ import re
 
 CODES = {'http_failure', 'side_call_bearer', 'invalid_arguments', 'permission_denied',
          'insufficient_quota', 'rate_limit_exceeded', 'model_not_found', 'invalid_api_key',
-         'content_policy_violation', 'unauthorized', 'forbidden'}
+         'content_policy_violation', 'unauthorized', 'forbidden',
+         'zdr_output_storage_required'}
 
 
 def summarize_failure(value):
@@ -37,7 +38,13 @@ def summarize_failure(value):
     for match in re.finditer(r'\b(?:http(?:/\d(?:\.\d)?)?\s+|http[_ -]?status\s*[:=]?\s*|status(?: code)?\s*[:=]\s*)([45]\d\d)\b', combined):
         statuses.add(int(match.group(1)))
     category = 'unknown_tool_error'
-    if "login is not an xai credential" in combined:
+    if 'zdr_output_storage_required' in codes or 'video generation tools are unavailable under zero data retention' in combined:
+        category = 'video_zdr_storage_required'
+    elif any(marker in combined for marker in ('image reference not readable', 'image reference contained no data',
+            'image reference must not be empty', 'malformed data url in image reference',
+            'image references only support base64 data urls', 'invalid image reference')):
+        category = 'video_source_image_invalid'
+    elif "login is not an xai credential" in combined:
         category = 'non_xai_login'
     elif 'no xai credential available' in combined:
         category = 'missing_xai_credential'
@@ -55,8 +62,16 @@ def summarize_failure(value):
         category = 'api_request_rejected'
     elif any(marker in combined for marker in ('permission denied', 'permission rule', 'denied by', 'not allowed by')):
         category = 'local_permission_denied'
-    elif 'invalid_arguments' in codes or any(marker in combined for marker in ('invalid argument', 'invalid aspect', 'invalid prompt', 'invalid parameter')):
+    elif 'invalid_arguments' in codes or any(marker in combined for marker in ('invalid argument', 'invalid aspect', 'invalid prompt', 'invalid parameter', 'duration must be either', 'must be one of:')):
         category = 'invalid_tool_arguments'
+    elif 'video generation request expired' in combined:
+        category = 'video_request_expired'
+    elif 'video generation did not complete within' in combined:
+        category = 'video_poll_timeout'
+    elif 'video generation failed on the server' in combined:
+        category = 'video_server_generation_failed'
+    elif 'no download url was returned' in combined or 'no request_id received' in combined:
+        category = 'video_response_incomplete'
     elif any(marker in combined for marker in ('timed out', 'timeout', 'connection refused', 'dns error', 'request failed', 'tls error')):
         category = 'transport_failure'
     elif any(marker in combined for marker in ('no space left', 'read-only file system', 'failed to save', 'failed to write')):
@@ -81,8 +96,12 @@ def nested_tool_events(value, depth=0):
             yield from nested_tool_events(child, depth+1)
 
 
-def cached_image_failure(root):
+def cached_media_failure(root, kind='image'):
     """Read only bounded updates.jsonl files; never credentials or auth files."""
+    if kind not in ('image', 'video'):
+        raise ValueError('unsupported media kind')
+    required = 'image_gen' if kind == 'image' else 'image_to_video'
+    prefixes = ('image_gen', 'image generation', 'generate image', 'image gen') if kind == 'image' else ('image_to_video', 'image to video', 'image-to-video')
     if not root.exists():
         return {'source': 'cached_session_updates', 'found': False, 'logs_scanned': 0}
     files = [path for path in root.rglob('updates.jsonl') if not path.is_symlink() and path.resolve().is_relative_to(root.resolve())]
@@ -93,7 +112,7 @@ def cached_image_failure(root):
         if path.stat().st_size > 16 * 1024 * 1024:
             continue
         scanned += 1
-        names, values, failed = {}, {}, set()
+        names, values, statuses = {}, {}, {}
         with path.open(encoding='utf-8', errors='replace') as source:
             for line in source:
                 try:
@@ -108,14 +127,25 @@ def cached_image_failure(root):
                         name = event.get('toolName') or event.get('name')
                         title = event.get('title')
                         normalized = title.lower() if isinstance(title, str) else ''
-                        if name == 'image_gen' or any(normalized.startswith(prefix) for prefix in ('image_gen', 'image generation', 'generate image', 'image gen')):
-                            names[cid] = 'image_gen'
-                    if event['type'] == 'tool_call_update' and names.get(cid) == 'image_gen':
+                        if name == required or any(normalized.startswith(prefix) for prefix in prefixes):
+                            names[cid] = required
+                            statuses[cid] = event.get('status')
+                    if event['type'] == 'tool_call_update' and names.get(cid) == required:
                         values.setdefault(cid, []).append({'rawOutput':event.get('rawOutput'), 'content':event.get('content')})
-                        if event.get('status') == 'failed':
-                            failed.add(cid)
-        for cid in reversed(list(values)):
-            if cid in failed:
-                return {'source':'cached_session_updates','found':True,'logs_scanned':scanned,
-                        'requested_tool':'image_gen', 'failure':summarize_failure(values[cid])}
+                        if event.get('status'):
+                            statuses[cid] = event['status']
+        if names:
+            # Stop at the latest session with this tool, even on success. An
+            # older unrelated failure must not be presented as this run's cause.
+            cid = next(reversed(names))
+            result = {'source':'cached_session_updates', 'found':statuses.get(cid) == 'failed',
+                      'logs_scanned':scanned, 'requested_tool':required,
+                      'latest_tool_status':statuses.get(cid) if statuses.get(cid) in ('pending', 'in_progress', 'completed', 'failed') else 'unknown'}
+            if result['found']:
+                result['failure'] = summarize_failure(values.get(cid, []))
+            return result
     return {'source':'cached_session_updates','found':False,'logs_scanned':scanned}
+
+
+def cached_image_failure(root):
+    return cached_media_failure(root, 'image')

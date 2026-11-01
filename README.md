@@ -2,14 +2,14 @@
 
 供 macOS 本機單使用者使用的獨立 Gateway，研究及接入 ChatGPT Plus、SuperGrok、Google AI Ultra。僅監聽 `127.0.0.1:8790`，需要獨立 Gateway key；不修改 MaiBot 核心、不接正式 QQ、不依賴 DSH 宿主。
 
-**目前為待真實帳號驗證的原型。** 程式測試使用模擬上游，不代表服務商授權、套餐權限或 macOS 登入已實測。
+**目前為原型。** 使用者已回報 macOS／SuperGrok 官方 CLI 圖片生成成功；影片已呼叫原生工具但失敗，原因待離線診斷。其他訂閱整合仍待真實帳號驗證；程式測試使用模擬上游。
 
 ## 功能狀態
 
 | 路由／登入方式 | 文字 | 圖片 | 影片 | 語音 |
 |---|---|---|---|---|
 | ChatGPT 官方 Sign in with ChatGPT | adapter 已實作 | 此 SIWC 路徑不支援 | 未接入 | 未接入 |
-| Grok 官方 CLI | adapter 已實作 | 原生 image_gen | 先生圖再 image_to_video | 未接入 |
+| Grok 官方 CLI | adapter 已實作 | 原生 image_gen，使用者回報成功 | 先生圖再 image_to_video，工具失敗待診斷 | 未接入 |
 | Grok 獨立核准 OAuth session | 已實作 | 直接生成／編輯 | 直接文生／圖生影片 | 未接入 |
 | Google AI Ultra → 官方 Antigravity CLI `agy` | adapter 已實作 | 未驗證 | 未驗證 | 未驗證 |
 | OpenAI／xAI 官方 API key（明確選用） | 已實作 | 生成已實作 | 未接入 | 未接入 |
@@ -101,7 +101,7 @@ python3 -m unittest discover -s tests -v
 node tests/chatgpt.test.mjs
 ```
 
-目前 Python 39 項與 Node 3 項程式測試通過；真實 Mac、官方 CLI binary、Keychain、瀏覽器登入及服務商端到端呼叫仍待驗證。
+目前 Python 43 項與 Node 3 項程式測試通過。使用者回報 Grok CLI 圖片生成成功；影片、其他提供者登入及端到端呼叫仍待驗證。
 
 - [Google Ultra / Antigravity 修正](docs/ANTIGRAVITY.md)
 - [DSH 端點、認證及宿主邊界](docs/DSH-REVIEW.md)

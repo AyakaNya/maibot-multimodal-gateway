@@ -47,6 +47,15 @@ class MediaTests(unittest.TestCase):
                 result = media.generate(kind, {'model': 'grok/default', 'prompt': 'an apple'})
                 self.assertEqual(base64.b64decode(result['data'][0]['b64_json']), PNG if kind == 'image' else MP4)
                 self.assertEqual(result['data'][0]['media_type'], 'image/png' if kind == 'image' else 'video/mp4')
+    def test_cli_video_duration_contract(self):
+        with patch('gateway.subscriptions.run_bounded') as run:
+            for duration in (True, 1, 8, 15, '6'):
+                with self.assertRaises(app.Failure) as caught:
+                    media.generate('video', {'model':'grok/default', 'prompt':'apple', 'duration':duration})
+                self.assertEqual(caught.exception.code, 'invalid_duration')
+            run.assert_not_called()
+        with patch('gateway.subscriptions.executable', return_value='/bin/grok'), patch('gateway.subscriptions.run_bounded', side_effect=self.emit('video')):
+            media.generate('video', {'model':'grok/default', 'prompt':'apple', 'duration':10})
     def test_no_model_text_as_artifact(self):
         with patch('gateway.subscriptions.executable', return_value='/bin/grok'), patch('gateway.subscriptions.run_bounded', return_value=(0, '{"text":"Saved to /etc/passwd"}')):
             with self.assertRaises(app.Failure) as caught:

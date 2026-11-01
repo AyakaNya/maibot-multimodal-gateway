@@ -1,3 +1,11 @@
+# 影片離線診斷與已知實測狀態
+
+Python 43/43、Node 3/3 通過。新增影片 ZDR、圖片引用、原生參數、輪詢／服務端結果分類，離線影片與起始圖片工具區分、成功 session 不誤用舊失敗，以及 CLI duration 6/10 契約測試。未呼叫服務商生成。
+
+使用者回報 macOS 上 Grok CLI 圖片生成成功。影片已提供並呼叫 image_to_video，但 failed，沒有回合上限；當前摘要為 unknown_tool_error，確切原因待使用者執行新版離線診斷。雲端沒有該本機日誌與帳號，不能宣稱影片已修復。
+
+測試通過後雲端執行環境斷線。最終提交透過 GitHub 整合，從固定基底重建相同程式與測試修改；文件於整合中更新。以下保留歷史測試紀錄。
+
 # Grok 媒體模型輪數上限
 
 Python 39/39 通過。新增使用者回報的 available=true、called=false、exit=1、max_turn_requests 場景，現在獨立回報 media_cli_turn_limit_reached；測試有限預算、非法預算拒絕、完成產物在上限退出時仍可回傳。尚未在使用者真實 CLI／訂閱驗證生成。

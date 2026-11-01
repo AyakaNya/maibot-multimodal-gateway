@@ -9,7 +9,7 @@ Grok 官方 Grok Build 的 `image_gen`、`image_to_video` 原生工具。Gateway
 
 | 訂閱 | 圖片生成 | 圖片編輯 | 影片 | 語音 |
 |---|---|---|---|---|
-| SuperGrok | 已接入，待真實帳號測試 | 未實作 | 已接入「先生圖再轉影片」，待真實帳號測試 | 未找到已驗證的 headless 音訊介面 |
+| SuperGrok | 使用者回報 CLI 生圖成功 | 未實作 | 已呼叫 image_to_video，但工具失敗待診斷 | 未找到已驗證的 headless 音訊介面 |
 | ChatGPT Plus / SIWC | 官方明確排除圖片生成工具 | 未支持此整合 | 無已驗證的訂閱介面 | 此流程不支持音訊／影片輸入及轉寫；無已驗證的 TTS 整合 |
 | Google AI Ultra / Gemini CLI | 未找到已驗證的 Ultra 額度生圖介面 | 未啟用 | 未找到已驗證的 Ultra 額度介面 | 未找到已驗證的 Ultra 額度介面 |
 
@@ -36,7 +36,7 @@ python3 scripts/media-poc.py --kind video --prompt '白色桌上的紅蘋果，�
 請求格式：
 
 - 圖片：POST `/v1/images/generations`，JSON `{"model":"grok/default","prompt":"...","n":1,"size":"1024x1024"}`。size 可省略，僅轉成 aspect ratio 指示，無精確像素保證。
-- 影片：POST `/v1/videos/generations`，JSON `{"model":"grok/default","prompt":"...","duration":6}`，duration 1–15 秒。會先產生起始圖片再動畫化，不接受任意本機檔案或遠端 URL 作輸入。
+- 影片：POST `/v1/videos/generations`，JSON `{"model":"grok/default","prompt":"...","duration":6}`，CLI image_to_video 的 duration 僅接受 6 或 10 秒（獨立 OAuth 接口的契約不同）。會先產生起始圖片再動畫化，不接受任意本機檔案或遠端 URL 作輸入。
 - 回傳 JSON `data:[{b64_json,media_type,bytes,sha256}]`。影片回傳為本專案的同步 PoC 合約，不是 OpenAI Video API 的非同步 job 合約。
 - 共用單一並發；600 秒程序 timeout，忙碌回 429。圖片最多 16 MiB、影片最多 32 MiB；超出會拒絕回傳，已消耗額度不會撤銷。CLI 可能在被終止前已提交生成，不自動重試。
 - 語音路由明確回 501；其他訂閱媒體路徑拒絕，不暗中改成付費 API。
@@ -138,3 +138,30 @@ python3 scripts/media-poc.py --backend cli --kind image --prompt '白色桌上�
 碰到上限且沒有完成產物，現在回 `media_cli_turn_limit_reached`，不是 tool_not_called；有原生工具已完成且媒體有效的情況仍回傳該產物。診斷增加 `configured_turn_budget`、`turn_limit_reached`、`usage_event_count` 與 `other_tool_call_count`，不保存提示詞或任意工具名稱。usage event 數量不等同精確模型輪數。
 
 更新後需先 Ctrl+C 停止舊 Gateway、`git pull --ff-only`、重新 `python3 -m gateway.app serve`，才會採用新上限。不需重新登入。該記錄不能證明模型為何在前幾輪沒有呼叫 image_gen，也不能保證提高上限即一定生圖成功；本輪修正的是過低預設及誤分類，不宣稱帳號權限已通過。
+
+
+## 圖片成功、影片工具失敗的離線診斷
+
+使用者已回報圖片生成成功。最新影片紀錄是 image_to_video 已提供、已呼叫、failed，退出碼 0、end_turn，沒有碰到回合上限。這只確認原生工具執行失敗，不能推斷為帳號不支援或已確定 ZDR 限制。
+
+更新後直接分析既有紀錄，不需要重啟 Gateway 或重新生成：
+
+```bash
+git pull --ff-only
+python3 scripts/media-diagnostic.py --kind video
+```
+
+命令只掃描本專案 CLI 的 updates.jsonl，輸出固定分類、狀態及代碼；不輸出提示詞、圖片路徑、簽名 URL、token 或原始錯誤。會停在最近一個含指定工具的 session；最近成功時不會回報更舊的失敗。found=false 表示未找到可用的失敗紀錄，並不代表影片權限已確認。
+
+按上述固定官方 video_gen 原始碼補上：
+
+| failure.category | 意義與下一步 |
+|---|---|
+| video_zdr_storage_required | CLI 明確回報 ZDR 需要儲存配置。保留現有隱私設定，依官方 ZDR storage 文件檢查是否具備可配置的 user-hosted bucket；Gateway 不會自動關閉隱私模式。 |
+| video_source_image_invalid | 起始圖片引用無法讀取或格式不符；檢查 Gateway 與 CLI 的圖片傳遞。 |
+| invalid_tool_arguments | 原生工具參數不符；image_to_video duration 僅接受 6/10。此次 PoC 預設 6，本次收緊驗證不代表已修復使用者的失敗。 |
+| video_poll_timeout / video_request_expired | 影片輪詢超時或請求到期。 |
+| video_server_generation_failed / video_response_incomplete | 服務端生成失敗或缺少必要結果。 |
+| unknown_tool_error | 既有訊息仍不足以分類；不能將它當作權限判定。 |
+
+本輪只補上診斷及符合 CLI 的秒數驗證，未宣稱影片問題已解決，也不自動重試或轉 API key。
