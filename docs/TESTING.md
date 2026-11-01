@@ -1,3 +1,9 @@
+# Antigravity help stderr 能力探測修正
+
+Python 80/80 通過。以官方 agy 1.4.12 實測 --help：exit 0、stdout 0 bytes、stderr 3048 bytes，--settings 在 stderr。新版限定獨立 --help 探測可合併兩個通道；經實際 run_bounded 探測 session_settings_supported:true。
+
+新增真實子程序 help stderr 回歸、login／prompt／payload 不得使用該模式、正常成功生成不回傳 stderr；舊 help／非選項提及／相似選項不誤判為支援。沒有使用真實帳號生成；這次修復前置能力偵測，不宣稱 Gemini 已生圖成功。以下保留歷史記錄。
+
 # MCP JSONC／BOM 相容與讀取錯誤定位
 
 Python 77/77 通過。官方 CLI 1.1.24 支援 MCP JSONC 註解／尾端逗號，1.3.1 支援 MCP 與 hooks BOM；補上相容解析，且不改寫全域設定。字串中的 URL／comment 字面內容不受影響，解析後仍檢查啟用 MCP。重複鍵、一般 JSON5 與錯誤結構仍阻擋。

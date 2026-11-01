@@ -188,7 +188,9 @@ class SubscriptionImageTests(unittest.TestCase):
         original=self.config.read_bytes()
         def run(command,env,**kwargs):
             if '--help' in command:
+                self.assertTrue(kwargs['capture_help'])
                 return '--settings --agent'
+            self.assertFalse(kwargs.get('capture_help',False))
             overlay=image_overlay(command)
             self.assertEqual(overlay['toolPermission'],'request-review')
             self.assertFalse(overlay['useG1Credits'])
@@ -205,10 +207,11 @@ class SubscriptionImageTests(unittest.TestCase):
         self.assertEqual(self.config.read_bytes(),original)
     def test_gemini_old_cli_is_rejected_before_generation(self):
         self.config.unlink()
-        with patch.object(subscriptions,'executable',return_value='/bin/agy'), patch.object(subscriptions,'run_bounded',return_value='old help') as run, self.assertRaises(app.Failure) as caught:
-            images.generate({'model':'gemini/default','prompt':'apple'})
-        self.assertEqual(caught.exception.code,'antigravity_update_cli_for_session_settings')
-        self.assertEqual(run.call_count,1)
+        for help_output in ('old help','Unsupported option: --settings','  --settings-file path'):
+            with patch.object(subscriptions,'executable',return_value='/bin/agy'), patch.object(subscriptions,'run_bounded',return_value=help_output) as run, self.assertRaises(app.Failure) as caught:
+                images.generate({'model':'gemini/default','prompt':'apple'})
+            self.assertEqual(caught.exception.code,'antigravity_update_cli_for_session_settings')
+            self.assertEqual(run.call_count,1)
     def test_gemini_missing_or_non_strict_settings_use_session_overlay(self):
         def run(command,env,**kwargs):
             if '--help' in command:

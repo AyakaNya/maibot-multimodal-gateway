@@ -46,6 +46,33 @@ class SubscriptionTests(unittest.TestCase):
         with self.assertRaises(app.Failure) as caught:
             subs.run_bounded([sys.executable, '-c', 'import sys; sys.stderr.write("secret-token"); sys.exit(1)'], os.environ.copy())
         self.assertNotIn('secret-token', caught.exception.code)
+    def test_help_probe_reads_stdout_and_stderr_from_real_child(self):
+        script=Path(self.temp.name)/'fixture-cli'
+        script.write_text('#!'+sys.executable+'\nimport sys\nassert sys.argv[1:] == ["--help"]\nprint("Usage: fixture-cli")\nprint("  --settings  Settings for this session",file=sys.stderr)\n')
+        script.chmod(0o700)
+        ordinary=subs.run_bounded([str(script),'--help'],os.environ.copy())
+        self.assertNotIn('--settings',ordinary)
+        help_output=subs.run_bounded([str(script),'--help'],os.environ.copy(),capture_help=True)
+        self.assertIn('Usage: fixture-cli',help_output)
+        self.assertIn('--settings',help_output)
+    def test_help_capture_is_rejected_for_prompts_login_or_extra_arguments(self):
+        cases=(([sys.executable,'login'],{}),([sys.executable,'--help','extra'],{}),
+               ([sys.executable,'--help'],{'payload':{'prompt':'private'}}),
+               ([sys.executable,'--help'],{'prompt_text':'private'}))
+        for command,kwargs in cases:
+            with patch.object(subs.subprocess,'Popen') as run,self.assertRaises(app.Failure) as caught:
+                subs.run_bounded(command,{},capture_help=True,**kwargs)
+            self.assertEqual(caught.exception.code,'help_capture_requires_help_only')
+            run.assert_not_called()
+    def test_successful_generation_does_not_return_stderr(self):
+        command=[sys.executable,'-c','import sys;print("public-result");print("private-secret",file=sys.stderr)']
+        for capture in (False,True):
+            output=subs.run_bounded(command,os.environ.copy(),capture_exit=capture)
+            if capture:
+                self.assertEqual(output[0],0)
+                output=output[1]
+            self.assertEqual(output,'public-result\n')
+            self.assertNotIn('private-secret',output)
     def test_gateway_routes_and_releases_slot_after_failure(self):
         gateway = app.Gateway('local')
         for provider in subs.PROVIDERS:

@@ -175,3 +175,14 @@ python3 scripts/antigravity-diagnostic.py
 如果仍 review_required:true，先分享新版 global_mcp 區段，無須分享檔案原文。沒有依據時不清空使用者設定，也不改權限或讀取登入憑證。本輪已修正可驗證的官方格式相容差異，仍未取得使用者實際檔案格式與讀取錯誤，不能宣稱真正阻擋原因已確認。
 
 Python 77/77 通過，新增 JSONC／BOM、字串與 URL 原樣保留、啟用 server 不被忽略、空檔／編碼／語法／權限／深度分類、重複鍵／錯誤逗號／非 JSON 常數拒絕，既有生成流程的測試亦使用帶註解與尾端逗號的停用 MCP 設定，確認檔案位元組不變。未呼叫提供者生成。
+
+
+## 已更新 CLI 仍報 update_cli_for_session_settings：help 輸出通道修正
+
+官方 agy 1.4.12 的 --help 成功退出，但 stdout 為 0 bytes，說明文字包含 --settings 全在 stderr。已用 SHA512 校驗過的官方 Linux binary 重現：stderr 3048 bytes。舊 Gateway 只收 stdout，會把新版也誤判成不支援本次設定；這是 Gateway 的能力檢查錯誤，不是 Google 帳號或生圖額度判定。
+
+新版只對兩個參數的獨立 CLI --help 探測合併 stdout／stderr，並匹配真正以 --settings 開始的選項行；說明中的錯誤句或 --settings-file 不算支援。合併模式不允許 login、額外參數、payload 或 prompt，且保留輸出大小／時間限制。一般文字、生成及 capture_exit 流程仍不回傳 stderr，診斷不保存原始說明或錯誤內容。
+
+不需要因這次誤判先重裝或重登。停止舊 Gateway，git pull --ff-only 後重啟，再執行原 Gemini 圖片 PoC。若修正後仍回同樣代碼，才表示 Gateway 實際呼叫到的 CLI 說明中沒有該選項；可先用官方 agy update 更新並重啟 Gateway。
+
+80 項 Python 測試通過，新增真實子程序把 help 選項輸出到 stderr 的回歸、非 help 捕捉拒絕、成功生成也不回傳 stderr。另以官方 agy 1.4.12 經新版 run_bounded 實際檢查，session_settings_supported:true；沒有登入或呼叫提供者生圖，因此仍待 Mac Ultra 生成結果。

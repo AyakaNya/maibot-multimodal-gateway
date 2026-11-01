@@ -1,6 +1,7 @@
 """Images through the providers' official local runtimes, never token extraction."""
 import json
 import os
+import re
 from pathlib import Path
 import tempfile
 import time
@@ -114,8 +115,8 @@ def generate_gemini(prompt):
                'permissions': permissions}
     env = image_environment('gemini')
     executable = subscriptions.executable('agy')
-    help_text = subscriptions.run_bounded([executable, '--help'], env, timeout=15)
-    if '--settings' not in help_text:
+    help_text = subscriptions.run_bounded([executable, '--help'], env, timeout=15, capture_help=True)
+    if not re.search(r'(?m)^\s*--settings(?:\s|=|$)', help_text):
         raise app.Failure(503, 'antigravity_update_cli_for_session_settings')
     with tempfile.TemporaryDirectory(prefix='maibot-gemini-image-') as work:
         workspace = Path(work)

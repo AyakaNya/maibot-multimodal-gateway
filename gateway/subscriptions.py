@@ -68,7 +68,11 @@ def login(provider):
         return subprocess.call(command, env=env, cwd=work)
 
 
-def run_bounded(command, env, payload=None, timeout=150, prompt_text=None, workdir=None, capture_exit=False):
+def run_bounded(command, env, payload=None, timeout=150, prompt_text=None, workdir=None, capture_exit=False, capture_help=False):
+    # Some CLIs write successful --help output to stderr. Permit merging only
+    # for a standalone help probe, never login, prompts or generation requests.
+    if capture_help and (len(command) != 2 or command[1] != '--help' or payload is not None or prompt_text is not None):
+        raise app.Failure(400, 'help_capture_requires_help_only')
     # Private files cap output without buffering an unbounded CLI stdout in RAM.
     with (tempfile.TemporaryDirectory(prefix='maibot-text-') if workdir is None else nullcontext(workdir)) as work, tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, tempfile.TemporaryFile() as source:
         if prompt_text is not None:
@@ -81,7 +85,8 @@ def run_bounded(command, env, payload=None, timeout=150, prompt_text=None, workd
             source.seek(0)
         try:
             proc = subprocess.Popen(command, stdin=source if payload is not None else subprocess.DEVNULL,
-                                    stdout=out, stderr=err, cwd=work, env=env, start_new_session=True)
+                                    stdout=out, stderr=subprocess.STDOUT if capture_help else err,
+                                    cwd=work, env=env, start_new_session=True)
         except OSError:
             raise app.Failure(503, 'subscription_runtime_unavailable') from None
         try:
