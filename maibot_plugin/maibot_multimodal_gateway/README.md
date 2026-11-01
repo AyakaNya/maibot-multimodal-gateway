@@ -1,6 +1,6 @@
 # MaiBot Multimodal Gateway 插件
 
-獨立 Host/Runner 插件，透過 `127.0.0.1` 呼叫既有 Gateway。目標 MaiBot 1.3.19–1.3.99、官方 SDK 2.21.x；不使用舊 Action API，不修改核心、不啟動登入、不接正式 QQ。
+獨立 Host/Runner 插件，透過 `127.0.0.1` 呼叫既有 Gateway。支援 MaiBot 1.3.18–1.3.99、官方 SDK 2.20.x–2.21.x；不使用舊 Action API，不修改核心、不啟動登入、不接正式 QQ。
 
 完整文件：[安裝、設定與驗證](https://github.com/AyakaNya/maibot-multimodal-gateway/blob/main/docs/MAIBOT.md)。
 
@@ -12,7 +12,7 @@
 python3 scripts/install-maibot-plugin.py --maibot-dir /你的/MaiBot --gateway-key-file "$PWD/.state/gateway.key"
 ```
 
-若目錄沒有 `bot.py`，使用安裝版實例模式：`--instance-dir /你的/實例 --host-version 1.3.19`，取代 `--maibot-dir`，並將版本換成實際 MaiBot 版本。需已有 `config/data/plugins`；詳見完整文件。
+若目錄沒有 `bot.py`，使用安裝版實例模式：`--instance-dir /你的/實例 --host-version 1.3.18`，取代 `--maibot-dir`，並將版本換成實際 MaiBot 版本。需已有 `config/data/plugins`；詳見完整文件。
 
 只會新增 `MaiBot/plugins/maibot_multimodal_gateway/`，key 只保存路徑，不複製任何憑證。更新插件加 `--update`，保留既有 `config.toml`。也可直接複製本目錄到 MaiBot 的 plugins 目錄。
 

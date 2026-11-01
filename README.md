@@ -116,7 +116,7 @@ git pull --ff-only
 
 ## MaiBot 插件
 
-已新增獨立 Host/Runner 插件，目標 MaiBot 1.3.19／SDK 2.21.x。保持 Gateway 運行，在此專案目錄執行：
+已新增獨立 Host/Runner 插件，支援 MaiBot 1.3.18–1.3.99／SDK 2.20.x–2.21.x。保持 Gateway 運行，在此專案目錄執行：
 
 ```bash
 python3 scripts/install-maibot-plugin.py --maibot-dir /你的/MaiBot --gateway-key-file "$PWD/.state/gateway.key"
@@ -133,7 +133,7 @@ python3 -m unittest discover -s tests -v
 node tests/chatgpt.test.mjs
 ```
 
-目前 Gateway Python 80 項、Node 3 項及獨立插件／安裝 21 項程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT Plus 訂閱生圖也已由使用者回報成功，Gemini Ultra 仍待帳號端到端驗證。
+目前 Gateway Python 80 項、Node 3 項及獨立插件／安裝 22 項（SDK 2.20.0、2.21.0 各通過）程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT Plus 訂閱生圖也已由使用者回報成功，Gemini Ultra 仍待帳號端到端驗證。
 
 - [Plus／Ultra 訂閱生圖](docs/SUBSCRIPTION-IMAGES.md)
 - [Google Ultra / Antigravity 修正](docs/ANTIGRAVITY.md)

@@ -29,13 +29,13 @@ def install(maibot_dir, *, update=False, gateway_key_file=None, instance_mode=Fa
             project = tomllib.loads((maibot_dir / 'pyproject.toml').read_text())['project']
             version = str(project['version'])
         except (OSError, ValueError, KeyError, TypeError):
-            raise ValueError('無法確認 MaiBot 版本；本版支援 MaiBot 1.3.19–1.3.99') from None
+            raise ValueError('無法確認 MaiBot 版本；本版支援 MaiBot 1.3.18–1.3.99') from None
     try:
         numbers = tuple(map(int, version.split('.')))
     except (ValueError, AttributeError):
-        raise ValueError('MaiBot 版本必須是三段數字，例如 1.3.19') from None
-    if len(numbers) != 3 or not (1, 3, 19) <= numbers <= (1, 3, 99):
-        raise ValueError('本插件目標為 MaiBot 1.3.19–1.3.99；不修改或升級 MaiBot 核心')
+        raise ValueError('MaiBot 版本必須是三段數字，例如 1.3.18') from None
+    if len(numbers) != 3 or not (1, 3, 18) <= numbers <= (1, 3, 99):
+        raise ValueError('本插件目標為 MaiBot 1.3.18–1.3.99；不修改或升級 MaiBot 核心')
     plugins = maibot_dir / 'plugins'
     target = plugins / 'maibot_multimodal_gateway'
     if plugins.is_symlink() or target.is_symlink():

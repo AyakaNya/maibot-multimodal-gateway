@@ -1,3 +1,9 @@
+# MaiBot 1.3.18／SDK 2.20.0 相容修正（插件 0.1.1）
+
+使用者回報實際版本為 MaiBot 1.3.18、SDK 2.20.0。以官方 1.3.18 發佈 commit `2a9af62cec37035d29237acbe2cf3adceb700b27` 的完整 ManifestValidator，在明確 Host／SDK 版本下、未啟用 force compatibility，重現舊 manifest 因 Host 最低 1.3.19 被拒；SDK 範圍僅警告。新版最低 Host 1.3.18／SDK 2.20.0 通過同一校驗器。
+
+插件與安裝 22/22 在隔離的 SDK 2.20.0、2.21.0 環境各通過。新增 1.3.18 原始碼／實例安裝與更新保留設定回歸、1.3.17 拒絕。核對 SDK components、LLMProvider、send、files 介面相同；Host ContextItem／timeout／載入介面已核對。沒有更新使用者核心／SDK，未連接完整 Host 或 QQ、未生成真實媒體。使用者更新後的載入／發送仍待確認。以下保留歷史記錄。
+
 # MaiBot 實例目錄安裝修正
 
 插件／安裝 21/21 通過。新增無 bot.py／pyproject 的實例安裝測試、版本必填與範圍檢查、缺少實例目錄拒絕；確認只新增插件、保留既有 config 與內層程式目錄。官方 `src/common/paths.py` 確認安裝版使用 `maibot run --directory` 與獨立 instance root。沒有在使用者 BSX 目錄操作或啟動 Host；此修正不改插件生成／傳送程式。以下保留歷史記錄。

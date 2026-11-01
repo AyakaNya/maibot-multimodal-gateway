@@ -1,6 +1,6 @@
 # MaiBot 插件接入
 
-已提供獨立插件 `maibot_plugin/maibot_multimodal_gateway`。按目前最新版 **MaiBot 1.3.19、官方 SDK 2.21.0** 的 Host/Runner 介面實作；manifest 暫限 MaiBot 1.3.19–1.3.99、SDK 2.21.x，後續新版須重新核對。無核心修改、無正式 QQ 連接。
+已提供獨立插件 `maibot_plugin/maibot_multimodal_gateway`。支援 **MaiBot 1.3.18–1.3.99、官方 SDK 2.20.x–2.21.x**，已核對 1.3.18／1.3.19 Host 原始碼，並在 SDK 2.20.0／2.21.0 各通過插件測試。未啟動完整 Host，不宣稱使用者實例載入已成功。無核心修改、無正式 QQ 連接。
 
 ## macOS 安裝
 
@@ -52,16 +52,33 @@ cooldown_seconds = 5.0
 
 新版 MaiBot 可將程式與實例資料分開。實例目錄只有 `config`、`data`、`plugins` 等資料夾時，不需要自行建立 `bot.py`，也不要將插件改裝進虛擬環境或內層程式目錄。以啟動命令 `maibot run --directory ...` 的 directory 為準，先從 MaiBot 啟動日誌或管理介面確認**實際 MaiBot 版本**（不是啟動器版本）。
 
-例如實例在 `~/Documents/BSX-V3`，且已確認 MaiBot 為 1.3.19，在 Gateway 專案目錄執行：
+例如實例在 `~/Documents/BSX-V3`，且已確認 MaiBot 為 1.3.18，在 Gateway 專案目錄執行：
 
 ```bash
 python3 scripts/install-maibot-plugin.py \
   --instance-dir "$HOME/Documents/BSX-V3" \
-  --host-version 1.3.19 \
+  --host-version 1.3.18 \
   --gateway-key-file "$PWD/.state/gateway.key"
 ```
 
-`1.3.19` 必須換成實際版本；不支援的版本會拒絕安裝，Host 仍會在載入時校驗 SDK／版本範圍。安裝器不執行內層 `my-maibot`，只新增指定實例的 `plugins/maibot_multimodal_gateway`，不修改既有核心、config／data 或其他插件。更新加 `--update`。此模式不會在你的 Mac 自動執行。
+`1.3.18` 必須換成實際版本；不支援的版本會拒絕安裝，Host 仍會在載入時校驗 SDK／版本範圍。安裝器不執行內層 `my-maibot`，只新增指定實例的 `plugins/maibot_multimodal_gateway`，不修改既有核心、config／data 或其他插件。更新加 `--update`。此模式不會在你的 Mac 自動執行。
+
+### 啟用出現「沒有對應的執行時」
+
+插件 0.1.0 曾將最低 Host 版本設為 1.3.19。使用者實際 MaiBot 1.3.18／SDK 2.20.0 在啟用時被 Host 版本校驗排除；停用時略過執行時版本校驗，因此仍可顯示插件並切換成 inactive。已用官方 1.3.18 校驗器重現舊 manifest 被拒，0.1.1 改為支援 1.3.18／SDK 2.20.0，並驗證新版 manifest 通過。
+
+在 Gateway 專案目錄更新，將版本／實例路徑換成實際值：
+
+```bash
+git pull --ff-only
+python3 scripts/install-maibot-plugin.py \
+  --instance-dir "$HOME/Documents/BSX-V3" \
+  --host-version 1.3.18 \
+  --gateway-key-file "$PWD/.state/gateway.key" \
+  --update
+```
+
+會更新插件程式與 manifest，保留既有 `config.toml`。完整停止／重新啟動 MaiBot，再啟用插件；不必升級核心或 SDK。若仍失敗，提供新一輪啟動中該插件的第一個載入錯誤，不要重複安裝或改用 API key。
 
 ## 功能與實測界線
 
@@ -118,6 +135,8 @@ python3 -m venv /tmp/maibot-plugin-test
 /tmp/maibot-plugin-test/bin/python -m unittest discover -s maibot_plugin/tests -v
 ```
 
-21 項插件／安裝測試使用真實官方 SDK、本機 Gateway HTTP、模擬提供者／Host RPC 與本機檔案上傳服務。不是完整 MaiBot Host 整合測試，未在使用者 Mac／正式 QQ 發送，也未消耗訂閱額度。完整記錄見 [TESTING.md](TESTING.md)。
+22 項插件／安裝測試在 SDK 2.20.0／2.21.0 各通過，使用真實官方 SDK、本機 Gateway HTTP、模擬提供者／Host RPC 與本機檔案上傳服務。不是完整 MaiBot Host 整合測試，未在使用者 Mac／正式 QQ 發送，也未消耗訂閱額度。完整記錄見 [TESTING.md](TESTING.md)。
 
 來源：[官方插件文件](https://docs.maibot.chat/plugin/)、[MaiBot 核對版本](https://github.com/Mai-with-u/MaiBot/tree/c6429547af711555e3d4d1b8d04b413572cb616c)、[SDK 核對版本](https://github.com/Mai-with-u/maibot-plugin-sdk/tree/aa9ab7b347f9d011a3e0b00addee46de8f16bf9e)。
+
+1.3.18 核對來源：[官方發佈 commit](https://github.com/Mai-with-u/MaiBot/commit/2a9af62cec37035d29237acbe2cf3adceb700b27)。SDK 2.20.0 的 components、LLMProvider、send、files 介面與 2.21.0 相同；本插件不使用 2.21.0 新增的桌寵按鈕功能。

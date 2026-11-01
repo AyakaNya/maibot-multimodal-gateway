@@ -80,3 +80,17 @@ class InstallTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             installer.install(self.root, instance_mode=True, host_version='1.3.19')
         self.assertEqual(list((self.root / 'plugins').iterdir()), [])
+
+    def test_1318_source_and_instance_install_and_below_minimum_rejection(self):
+        (self.root / 'pyproject.toml').write_text('[project]\nversion="1.3.18"\n')
+        target = installer.install(self.root)
+        original = (target / 'config.toml').read_bytes()
+        for name in ('config', 'data'):
+            (self.root / name).mkdir()
+        installer.install(self.root, instance_mode=True, host_version='1.3.18', update=True)
+        self.assertEqual((target / 'config.toml').read_bytes(), original)
+        for mode in (False, True):
+            (self.root / 'pyproject.toml').write_text('[project]\nversion="1.3.17"\n')
+            with self.assertRaises(ValueError):
+                installer.install(self.root, instance_mode=mode, host_version='1.3.17', update=True)
+        self.assertEqual((target / 'config.toml').read_bytes(), original)
