@@ -21,6 +21,14 @@ class MediaTests(unittest.TestCase):
         def run(command, env, **kwargs):
             self.assertNotIn('XAI_API_KEY', env)
             self.assertIn('MCPTool', command)
+            denies = [command[index+1] for index, arg in enumerate(command) if arg == '--deny']
+            self.assertIn('Edit(/**)', denies)
+            self.assertIn('Write(/**)', denies)
+            for lockdown in ('Edit', 'Write', 'Edit(*)', 'Write(*)'):
+                self.assertNotIn(lockdown, denies)
+            self.assertIn('Bash', denies)
+            self.assertIn('Read', denies)
+            self.assertIn('WebFetch', denies)
             self.assertNotIn('run_terminal_cmd', command[command.index('--tools')+1])
             session = command[command.index('--session-id')+1]
             folder = app.STATE / 'grok/sessions/encoded-cwd' / session / ('images' if kind == 'image' else 'videos')

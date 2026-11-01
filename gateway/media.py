@@ -96,7 +96,11 @@ def generate(kind, body):
                '--session-id', session_id, '--output-format', 'streaming-json', '--tools', tools,
                '--always-approve', '--no-plan', '--no-subagents', '--no-memory', '--disable-web-search',
                '--max-turns', '2' if kind == 'image' else '3']
-    for denied in ('Bash', 'Edit', 'Write', 'Read', 'Grep', 'WebFetch', 'MCPTool'):
+    # Grok treats bare Edit/Write (including (*) aliases) as a lockdown on
+    # AccessKind::Tool, which includes image_gen/image_to_video. Use absolute
+    # file-path globs on macOS so ordinary edits stay denied without denying
+    # the selected native media tools. Remote/managed policy is unchanged.
+    for denied in ('Bash', 'Edit(/**)', 'Write(/**)', 'Read', 'Grep', 'WebFetch', 'MCPTool'):
         command.extend(['--deny', denied])
     app.save_secret('media-diagnostic.json', json.dumps({'version': 1, 'kind': kind, 'phase': 'running'}))
     with tempfile.TemporaryDirectory(prefix='maibot-media-') as work:

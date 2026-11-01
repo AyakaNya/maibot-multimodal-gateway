@@ -1,3 +1,7 @@
+# 媒體權限規則回歸修正
+
+媒體命令將裸 Edit/Write 改成 macOS 絕對檔案路徑 glob，避免原生 image_gen 被全域 Tool lockdown 誤擋。既有媒體圖／影片測試加入 CLI 參數契約檢查：拒絕 shell、檔案、web/MCP 並保留媒體 allowlist。這是本地測試與官方原始碼核對，不宣稱已實測使用者帳號。
+
 # 工具失敗去敏診斷
 
 Python 36/36 測試通過，新增 HTTP／憑證／本機失敗分類、任意數字不誤判 HTTP、既有 ACP envelope 紀錄離線分析及憑證檔不掃描。未知錯誤仍需使用者本機分類結果，不宣稱已修復上游生成。

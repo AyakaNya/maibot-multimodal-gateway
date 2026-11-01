@@ -103,3 +103,26 @@ python3 scripts/media-diagnostic.py
 此命令不連網、不呼叫 grok、不消耗生成額度。它只在本專案 `.state/grok/sessions` 中找近期有界的 `updates.jsonl`，讀取圖片工具失敗事件並輸出同樣去敏的分類；不讀 auth/token 檔或輸出原始對話。如果 `found=false`，可能是當前 CLI 沒保存相容格式的更新紀錄，不能據此推斷權限。
 
 若版本 1 診斷來自舊流程，離線命令可在有相容紀錄時補出原因。需要新請求時再重啟 Gateway，從 `.state/media-diagnostic.json` 讀 version=2。尚無使用者實際錯誤內容，因此本輪是補齊診斷，並非宣稱服務商失敗已解決。
+
+### 修正：Gateway 自己的 Edit/Write 全域拒絕會擋住原生媒體工具
+
+使用者 Grok 1.0.70 的圖片呼叫回報工具已提供、已呼叫，但本機 permission denied。核對官方原始碼後，發現 Gateway 的媒體命令包含 `--deny Edit`、`--deny Write`，是確定的設定錯誤：
+
+- [permission_access.rs](https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-tools/src/permission_access.rs) 將 ImageGen 映射為 `AccessKind::Tool("image_gen")`，而非檔案 Edit。
+- [policy.rs 的 rule_reaches](https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-permission-rules/src/policy.rs) 明確將工具範圍的 Edit deny/ask 套用到原生 Tool；檔案路徑 pattern 則不會。
+- [rules.rs](https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-permission-rules/src/rules.rs) 將 Write 視為 Edit 的別名。`Edit(*)`／`Write(*)` 同樣是全域規則，不能作為修正。
+
+媒體命令已改用 `--deny 'Edit(/**)' --deny 'Write(/**)'`，在目前目標 macOS 上拒絕一般檔案路徑修改；保留 `--deny Bash`、Read、Grep、WebFetch、MCPTool，以及 `--tools image_gen`（影片為 image_gen,image_to_video）的明確 allowlist。文字路徑維持原本工具全禁規則。
+
+此變更只修正本 Gateway 建立的過廣規則，不移除服務商／管理員限制、不更換憑證、不改走付費 API。回歸測試檢查媒體命令沒有裸 Edit/Write／(*) lockdown，且檔案、shell 與網路／MCP 限制仍在。尚未在使用者 Mac 上實際生成，需更新後重啟並測試；如果還有其他拒絕，仍按新版診斷分別處理。
+
+```bash
+# 在第一個終端 Ctrl+C 停止舊 Gateway，再執行：
+git pull --ff-only
+python3 -m gateway.app serve
+```
+
+```bash
+# 另一個終端：
+python3 scripts/media-poc.py --backend cli --kind image --prompt '白色桌上的紅蘋果'
+```
