@@ -7,7 +7,7 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'maibot_plugin/maibot_multimodal_gateway'
-FILES = ('__init__.py', 'plugin.py', 'client.py', '_manifest.json', 'config.example.toml',
+FILES = ('__init__.py', 'plugin.py', 'client.py', 'provider.py', '_manifest.json', 'config.example.toml',
          'requirements.txt', '.gitignore', 'README.md', 'LICENSE')
 
 

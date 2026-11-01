@@ -19,3 +19,7 @@ image_enabled = true
 tools_enabled = false
 video_enabled = false
 llm_provider_enabled = false
+
+# Grok subscription bridge only; existing configs default to false.
+provider_tool_calls_enabled = false
+provider_vision_enabled = false

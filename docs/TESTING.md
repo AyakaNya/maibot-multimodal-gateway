@@ -1,3 +1,9 @@
+# Grok 工具決策橋接與圖片輸入（插件 0.2.0）
+
+Gateway Python 86/86、Node 3/3、SDK 2.20.0／2.21.0 各 26/26 插件測試通過。新增以真實子程序 fixture 讀取私有 ACP JSON prompt、驗證圖片區塊、JSON Schema structuredOutput → 工具結果 → 最終回答，及官方 SDK＋本機 Gateway HTTP 的 ContextItem 往返。測試 API-key 環境清除、未宣告工具／錯誤參數／未完成輸出拒絕、遠端 Schema 引用拒絕、無音訊檔入口時明確拒絕且無本機或 API fallback。
+
+工具參數用 Host 已依賴的 jsonschema 驗證。此為 JSON Schema／提示詞橋接，不是原生 API function calling。CLI 原始碼已核對，未使用真實帳號生成、未啟動完整 Host 或連接 QQ；真實圖片理解和 MaiBot 工具執行仍待使用者驗證。依使用者偏好只允許 SuperGrok 訂閱語音，本輪未啟用 Whisper／本機 TTS／付費 API。詳見 [GROK-MULTIMODAL.md](GROK-MULTIMODAL.md)。以下保留歷史記錄。
+
 # MaiBot 1.3.18／SDK 2.20.0 相容修正（插件 0.1.1）
 
 使用者回報實際版本為 MaiBot 1.3.18、SDK 2.20.0。以官方 1.3.18 發佈 commit `2a9af62cec37035d29237acbe2cf3adceb700b27` 的完整 ManifestValidator，在明確 Host／SDK 版本下、未啟用 force compatibility，重現舊 manifest 因 Host 最低 1.3.19 被拒；SDK 範圍僅警告。新版最低 Host 1.3.18／SDK 2.20.0 通過同一校驗器。

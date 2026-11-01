@@ -8,6 +8,7 @@ from typing import Literal
 from maibot_sdk import Command, Field, LLMProvider, MaiBotPlugin, PluginConfigBase, Tool
 from maibot_sdk.types import ToolParameterInfo, ToolParamType
 
+from . import provider as provider_wire
 from .client import GatewayClient, GatewayError, Settings, artifact, provider_messages, response_text, route, text_model
 
 TIMEOUT_MS = 660000
@@ -36,7 +37,9 @@ class FeatureSection(PluginConfigBase):
     image_enabled: bool = Field(default=True, description='開啟明確生圖命令')
     tools_enabled: bool = Field(default=False, description='允許 MaiBot 模型選用圖片／影片工具；會使用訂閱額度')
     video_enabled: bool = Field(default=False, description='允許 Grok 影片工具；須開啟 Host 檔案服務')
-    llm_provider_enabled: bool = Field(default=False, description='可選的純文字模型 Provider；不支援 planner 工具呼叫')
+    provider_tool_calls_enabled: bool = Field(default=False, description='允許 grok JSON 工具呼叫橋接；工具由 MaiBot 執行，需保留 Host 權限控制')
+    provider_vision_enabled: bool = Field(default=False, description='允許 grok 接收使用者 base64 圖片')
+    llm_provider_enabled: bool = Field(default=False, description='開啟模型 Provider；進階多模態使用 grok 路由')
 
 
 class GatewayPluginConfig(PluginConfigBase):
@@ -235,20 +238,22 @@ class MultimodalGatewayPlugin(MaiBotPlugin):
         except GatewayError as error:
             return {'success': False, 'content': str(error) + '；不要自動重試。'}
 
-    @LLMProvider('ayakanya.multimodal_gateway', name='Local Subscription Gateway', version='0.1.0')
+    @LLMProvider('ayakanya.multimodal_gateway', name='Local Subscription Gateway', version='0.2.0')
     async def llm_provider(self, operation, request):
         if self._closing or not self.config.plugin.enabled or not self.config.features.llm_provider_enabled:
             raise GatewayError('text_provider_not_enabled')
+        model = text_model(request.get('model_info', {}).get('model_identifier', ''))
+        if operation == 'audio_transcription':
+            raise GatewayError('supergrok_subscription_audio_file_interface_unavailable')
         if operation != 'response':
             raise GatewayError('unsupported_provider_operation')
-        model = text_model(request.get('model_info', {}).get('model_identifier', ''))
+        if model.startswith('grok/') and (self.config.features.provider_tool_calls_enabled or self.config.features.provider_vision_enabled):
+            body = provider_wire.request_body(request, model, self.config.features)
+            result = await self._request('chat', body)
+            return provider_wire.output(result, body['tools'], modern='context_items' in request)
         messages = provider_messages(request)
-        result = await self._request('chat', {'model': model, 'messages': messages, 'stream': False}, stream_id='_provider')
-        text = response_text(result)
-        if 'context_items' in request:
-            return {'item_schema_version': 1, 'output_items': [
-                {'item_type': 'AssistantMessageItem', 'parts': [{'type': 'text', 'text': text}], 'phase': 'final'}]}
-        return {'content': text}
+        result = await self._request('chat', {'model': model, 'messages': messages, 'stream': False})
+        return provider_wire.output(result, [], modern='context_items' in request)
 
 
 def create_plugin():

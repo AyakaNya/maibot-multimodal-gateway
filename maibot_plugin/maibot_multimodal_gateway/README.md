@@ -43,11 +43,13 @@ MaiBot Runner 與 Gateway 必須同一台 Mac、同一使用者，且 Runner 可
 
 影片需另設定 `features.video_enabled=true`，並由管理員在 MaiBot 啟用檔案服務與此插件的 `files.list`／`files.upload`／`files.send` 能力。工具會先檢查檔案服務，再生成 Grok 六秒影片、驗證 MP4／大小／SHA256，透過官方檔案傳輸回到當前聊天。未開檔案服務會先拒絕，不消耗影片額度。檔案服務回 `unknown` 時不自動重發或再次生成。
 
-## 可選純文字 Provider
+## 可選模型 Provider
 
-`client_type=ayakanya.multimodal_gateway` 已同時在 manifest 與裝飾器註冊。需另開 `features.llm_provider_enabled=true`。支援 `response`、純文字 `message_list`／Context Item schema 1；圖片輸入、工具呼叫、structured output、embedding／ASR 明確拒絕。不要用它替代需要 function calls 的 planner，也不要把不支援的內容默默轉成文字。
+`client_type=ayakanya.multimodal_gateway` 已同時在 manifest 與裝飾器註冊。開 `features.llm_provider_enabled=true`。Grok 另開 `provider_tool_calls_enabled` 與 `provider_vision_enabled`，可透過 JSON Schema 橋接選擇 MaiBot 工具、回送工具結果，並用官方 ACP 區塊提交圖片。工具由 MaiBot 執行，保留 Host 權限與 Schema 校驗；不是原生 xAI API function calling。
 
-`model_identifier` 使用 `grok/default`、`chatgpt/default` 或 `gemini/default`。Provider 的 base_url／api_key 不會覆蓋插件本機設定；Gateway key 只讀本機檔案。Host 的該 API provider 設 `timeout=660`、`max_retry=0`，避免 Host 自動重試已消耗額度的生成。設定範例在主文件；插件不替你修改模型配置。
+[完整 Grok 設定、模型欄位與真實 PoC](https://github.com/AyakaNya/maibot-multimodal-gateway/blob/main/docs/GROK-MULTIMODAL.md)。`model_identifier=grok/default`；GPT／Gemini 路由仍為純文字。structured output、embedding／ASR 拒絕；SuperGrok 語音檔尚無已確認 headless 訂閱入口，不加本機或 API 替代。
+
+Provider 的 base_url／api_key 不會覆蓋插件本機設定；Gateway key 只讀本機檔案。Host 的該 API provider 設 `timeout=660`、`max_retry=0`，避免自動重試。Provider 沒有可靠平台上下文，命令的 internal 流限制不適用，先只配置獨立本機測試任務。插件不替你修改模型配置。
 
 ## 執行限制
 

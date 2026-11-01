@@ -177,6 +177,66 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
             for operation,body in cases:
                 with self.assertRaises(GatewayError): await self.plugin.llm_provider(operation,body)
             request.assert_not_called()
+    async def test_grok_provider_tool_round_trip_through_real_gateway_http(self):
+        self.plugin.config.features.provider_tool_calls_enabled=True
+        definitions=[{'type':'function','function':{'name':'lookup_weather','parameters':{
+            'type':'object','properties':{'city':{'type':'string'}},'required':['city'],'additionalProperties':False}}}]
+        request={'item_schema_version':1,'context_items':[{'item_type':'UserMessageItem',
+            'parts':[{'type':'text','text':'Taipei weather?'}]}],
+            'model_info':{'model_identifier':'grok/default'},'tool_options':definitions,'tool_choice':'auto'}
+        responses=[{'content':None,'tool_calls':[{'name':'lookup_weather','arguments':json.dumps({'city':'Taipei'})}]},
+                   {'content':'Sunny.','tool_calls':[]}]
+        prompts=[]
+        def runtime(command,env,**kwargs):
+            if command[1:]==['--help']: return '  --prompt-file PATH\n  --json-schema SCHEMA'
+            source=Path(command[command.index('--prompt-file')+1]);prompts.append(json.loads(source.read_text()))
+            return json.dumps({'structuredOutput':responses.pop(0),'stopReason':'end_turn'})
+        with patch('gateway.subscriptions.executable',return_value='/fixture/grok'),patch('gateway.subscriptions.run_bounded',side_effect=runtime):
+            first=await self.plugin.llm_provider('response',request)
+            item=first['output_items'][0]
+            self.assertEqual(item['item_type'],'FunctionCallItem')
+            self.assertEqual(item['tool_call']['func_name'],'lookup_weather')
+            # Host would authorize and run this declared tool, then supply its result.
+            request['context_items'] += [item,{'item_type':'FunctionCallOutputItem',
+                'call_id':item['tool_call']['call_id'],'output':'sunny','success':True,'tool_name':'lookup_weather'}]
+            final=await self.plugin.llm_provider('response',request)
+        self.assertEqual(final['output_items'][0]['parts'][0]['text'],'Sunny.')
+        self.assertEqual(len(prompts),2)
+        self.assertIn('sunny',prompts[1][0]['text'])
+        self.assertEqual(self.calls,[])  # No plugin-side tool execution or message sending.
+    async def test_grok_provider_image_context_uses_inline_native_acp_image(self):
+        self.plugin.config.features.provider_vision_enabled=True
+        request={'item_schema_version':1,'context_items':[{'item_type':'UserMessageItem','parts':[
+            {'type':'text','text':'Describe this'}, {'type':'image','image_format':'png','image_base64':base64.b64encode(PNG).decode()}]}],
+            'model_info':{'model_identifier':'grok/default'}}
+        def runtime(command,env,**kwargs):
+            if command[1:]==['--help']: return '  --prompt-file PATH'
+            source=Path(command[command.index('--prompt-file')+1]);blocks=json.loads(source.read_text())
+            self.assertEqual(base64.b64decode(blocks[2]['data']),PNG)
+            self.assertEqual(blocks[2]['mimeType'],'image/png')
+            return json.dumps({'text':'A fixture image.','stopReason':'end_turn'})
+        with patch('gateway.subscriptions.executable',return_value='/fixture/grok'),patch('gateway.subscriptions.run_bounded',side_effect=runtime):
+            result=await self.plugin.llm_provider('response',request)
+        self.assertEqual(result['output_items'][0]['parts'][0]['text'],'A fixture image.')
+    async def test_grok_bad_tool_arguments_fail_json_schema_before_host_execution(self):
+        from maibot_multimodal_gateway.provider import output,validate_definitions
+        definitions=[{'type':'function','function':{'name':'lookup_weather','parameters':{
+            'type':'object','properties':{'city':{'type':'string'}},'required':['city'],'additionalProperties':False}}}]
+        for args in ({'city':4},{},{'city':'Taipei','shell':'echo unsafe'}):
+            result={'choices':[{'message':{'content':None,'tool_calls':[{'type':'function','id':'gw_'+'a'*48,
+                'function':{'name':'lookup_weather','arguments':json.dumps(args)}}]}}]}
+            with self.assertRaises(GatewayError): output(result,definitions)
+        remote=[{'type':'function','function':{'name':'lookup_weather','parameters':{
+            'type':'object','properties':{'city':{'$ref':'https://example.com/schema'}}}}}]
+        with patch('urllib.request.urlopen') as fetch,self.assertRaises(GatewayError): validate_definitions(remote)
+        fetch.assert_not_called()
+    async def test_supergrok_audio_never_uses_local_or_api_fallback(self):
+        with patch.object(GatewayClient,'request') as request,self.assertRaises(GatewayError) as caught:
+            await self.plugin.llm_provider('audio_transcription',{'model_info':{'model_identifier':'grok/default'},
+                'audio_base64':base64.b64encode(b'RIFF\x00\x00\x00\x00WAVEfixture').decode()})
+        self.assertEqual(caught.exception.code,'supergrok_subscription_audio_file_interface_unavailable')
+        request.assert_not_called()
+
     async def test_video_uses_real_sdk_upload_and_tool_scope_send(self):
         opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
         with patch('gateway.media.generate',return_value=media_result('video')) as upstream,patch('maibot_sdk.capabilities.files.urlopen',side_effect=opener.open):

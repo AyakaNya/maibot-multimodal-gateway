@@ -114,6 +114,10 @@ git pull --ff-only
 
 原生 CLI 的多輪歷史以 JSON conversation 輸入，與原生 Chat Completions role 語義不完全相同。CLI 工具權限限制不是完整 OS sandbox，僅供受信任本機使用者；不要反向代理公開服務。
 
+## Grok 工具呼叫、圖片理解與語音狀態
+
+插件 0.2.0 可在 `grok/default` 另開 JSON Schema 工具決策橋接及圖片輸入；工具由 MaiBot 執行，不開啟 CLI shell／檔案工具。不是原生 xAI API function calling，真實帳號與 Host 往返仍待驗證。SuperGrok 語音檔沒有已確認可用的 headless 訂閱入口，按使用者要求不轉本機或付費 API。設定與 PoC 見 [Grok 多模態指南](docs/GROK-MULTIMODAL.md)。
+
 ## MaiBot 插件
 
 已新增獨立 Host/Runner 插件，支援 MaiBot 1.3.18–1.3.99／SDK 2.20.x–2.21.x。保持 Gateway 運行，在此專案目錄執行：
@@ -133,8 +137,9 @@ python3 -m unittest discover -s tests -v
 node tests/chatgpt.test.mjs
 ```
 
-目前 Gateway Python 80 項、Node 3 項及獨立插件／安裝 22 項（SDK 2.20.0、2.21.0 各通過）程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT Plus 訂閱生圖也已由使用者回報成功，Gemini Ultra 仍待帳號端到端驗證。
+目前 Gateway Python 86 項、Node 3 項及獨立插件／安裝 26 項（SDK 2.20.0、2.21.0 各通過）程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT Plus 訂閱生圖也已由使用者回報成功，Gemini Ultra 仍待帳號端到端驗證。
 
+- [Grok 工具呼叫與圖片理解](docs/GROK-MULTIMODAL.md)
 - [Plus／Ultra 訂閱生圖](docs/SUBSCRIPTION-IMAGES.md)
 - [Google Ultra / Antigravity 修正](docs/ANTIGRAVITY.md)
 - [DSH 端點、認證及宿主邊界](docs/DSH-REVIEW.md)

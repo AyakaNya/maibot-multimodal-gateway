@@ -89,14 +89,14 @@ python3 scripts/install-maibot-plugin.py \
 | Gemini Ultra 訂閱生圖 | `/mm image gemini 提示詞` | 路由已接上；先前 CLI／設定阻擋，尚未取得真實成功回報 |
 | 模型選用生圖工具 | `gateway_image(provider,prompt)` | 須開 `features.tools_enabled`；限 allowlist 中的 internal 測試流 |
 | Grok 六秒影片 | `gateway_video(prompt)` | 須另開 `features.video_enabled` 及 Host 檔案服務；Gateway 已有使用者成功回報，插件真實傳送待驗證 |
-| 純文字 Provider | `ayakanya.multimodal_gateway` | 可選、預設關閉；只支援文字 response |
+| 模型 Provider | `ayakanya.multimodal_gateway` | 可選、預設關閉；Grok 可另開工具橋接與圖片理解，其他路由仍為文字 |
 | 圖片編輯、語音、GPT／Gemini 影片 | 無 | 本插件未實作，不假設訂閱有權限 |
 
 影片只有 Tool 入口，沒有 `/mm video`。官方檔案服務依真實工具呼叫簽發作用域，不能從 Command 假造。管理員需允許 `files.list`、`files.upload`、`files.send`；先做檔案服務檢查，再消耗影片額度。服務回傳送達狀態 `unknown` 時不自動重發或再生成。
 
-## 可選純文字 Provider
+## 模型 Provider：文字與 Grok 多模態
 
-明確命令足以使用插件。只有需要另設測試文字模型時，才開 `features.llm_provider_enabled=true`，並在 MaiBot 模型設定加入一個 API provider，例如：
+明確命令足以使用插件。需要將模型加入 MaiBot 任務時，開 `features.llm_provider_enabled=true`，並在 MaiBot 模型設定加入一個 API provider，例如：
 
 ```toml
 [[api_providers]]
@@ -119,7 +119,7 @@ send_temperature = false
 
 這是手動合併範例，不要覆蓋原有模型設定。Provider 的 URL／key 以插件 `config.toml` 為準，並不採用模型配置中的 key。模型也可用 `grok/default` 或 `gemini/default`。只在獨立本機測試模型任務使用；Provider 請求沒有可靠的平台上下文，**命令／工具的 internal 流限制不適用於 Provider**，請勿將它指定給正式聊天任務。
 
-支援新版 `context_items` schema 1 與舊 `message_list` 的純文字；工具呼叫、非文字輸入、structured output、embedding／ASR 明確拒絕，不適合需要 function calling 的 planner。不轉送 temperature、max_tokens 或任意 extra_params，也不宣稱能控制原生訂閱 CLI 的這些參數。
+文字支援新版 `context_items` schema 1 與舊 `message_list`。插件 0.2.0 可另開 Grok JSON 工具呼叫橋接與圖片輸入，見 [Grok 多模態設定](GROK-MULTIMODAL.md)；原有 GPT／Gemini 路由仍為純文字，不支援其 planner 工具呼叫。structured output、embedding／ASR 明確拒絕。不轉送 temperature、max_tokens 或任意 extra_params，也不宣稱能控制原生訂閱 CLI 的這些參數。
 
 ## 安全、驗證與限制
 
@@ -131,11 +131,11 @@ send_temperature = false
 
 ```bash
 python3 -m venv /tmp/maibot-plugin-test
-/tmp/maibot-plugin-test/bin/pip install 'maibot-plugin-sdk==2.21.0'
+/tmp/maibot-plugin-test/bin/pip install 'maibot-plugin-sdk==2.21.0' 'jsonschema>=4,<5'
 /tmp/maibot-plugin-test/bin/python -m unittest discover -s maibot_plugin/tests -v
 ```
 
-22 項插件／安裝測試在 SDK 2.20.0／2.21.0 各通過，使用真實官方 SDK、本機 Gateway HTTP、模擬提供者／Host RPC 與本機檔案上傳服務。不是完整 MaiBot Host 整合測試，未在使用者 Mac／正式 QQ 發送，也未消耗訂閱額度。完整記錄見 [TESTING.md](TESTING.md)。
+26 項插件／安裝測試在 SDK 2.20.0／2.21.0 各通過，使用真實官方 SDK、本機 Gateway HTTP、模擬提供者／Host RPC 與本機檔案上傳服務。不是完整 MaiBot Host 整合測試，未在使用者 Mac／正式 QQ 發送，也未消耗訂閱額度。完整記錄見 [TESTING.md](TESTING.md)。
 
 來源：[官方插件文件](https://docs.maibot.chat/plugin/)、[MaiBot 核對版本](https://github.com/Mai-with-u/MaiBot/tree/c6429547af711555e3d4d1b8d04b413572cb616c)、[SDK 核對版本](https://github.com/Mai-with-u/maibot-plugin-sdk/tree/aa9ab7b347f9d011a3e0b00addee46de8f16bf9e)。
 

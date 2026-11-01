@@ -1,9 +1,9 @@
 {
   "manifest_version": 2,
   "id": "ayakanya.multimodal-gateway",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "name": "MaiBot Multimodal Gateway",
-  "description": "本機訂閱 Gateway：Grok／ChatGPT／Gemini 文字、生圖與 Grok 影片；僅限 Mai Chat 測試平台。",
+  "description": "本機訂閱 Gateway：Grok 工具呼叫橋接／圖片理解、三家文字與生圖、Grok 影片；語音檔尚無訂閱入口。",
   "author": {
     "name": "AyakaNya",
     "url": "https://github.com/AyakaNya"
@@ -33,8 +33,8 @@
     {
       "client_type": "ayakanya.multimodal_gateway",
       "name": "Local Subscription Gateway",
-      "description": "僅純文字 response；不支援工具呼叫、向量或語音。",
-      "version": "0.1.0"
+      "description": "Grok 支援文字、JSON 工具橋接、圖片輸入；其他路由仍為純文字。語音檔與向量明確拒絕。",
+      "version": "0.2.0"
     }
   ],
   "i18n": {

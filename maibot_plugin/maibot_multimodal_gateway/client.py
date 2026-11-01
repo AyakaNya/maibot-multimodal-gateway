@@ -11,7 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-MAX_REQUEST = 1024 * 1024
+MAX_REQUEST = 8 * 1024 * 1024
 MAX_RESPONSE = 48 * 1024 * 1024
 PROVIDERS = {'grok': 'grok', 'gpt': 'chatgpt', 'chatgpt': 'chatgpt', 'gemini': 'gemini'}
 

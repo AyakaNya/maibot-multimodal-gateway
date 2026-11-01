@@ -1,2 +1,3 @@
 # The MaiBot Runner must already provide this SDK. No provider SDKs are imported.
 maibot-plugin-sdk>=2.20.0,<2.22.0
+jsonschema>=4,<5

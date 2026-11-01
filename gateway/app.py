@@ -21,7 +21,7 @@ if __name__ == '__main__':
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / '.state'
-MAX_BODY = 1024 * 1024
+MAX_BODY = 8 * 1024 * 1024
 MAX_RESPONSE = 24 * 1024 * 1024
 
 class Failure(Exception):
@@ -89,6 +89,22 @@ class Gateway:
         self.slots = threading.BoundedSemaphore(limit)
 
     def dispatch(self, path, body):
+        candidate_messages = body.get('messages')
+        advanced_grok = ('tools' in body or isinstance(candidate_messages, list) and any(
+            isinstance(message, dict) and (isinstance(message.get('content'), list) or
+            message.get('role') == 'tool' or message.get('tool_calls')) for message in candidate_messages))
+        if path == '/v1/chat/completions' and isinstance(body.get('model'), str) and body['model'].startswith('grok/') and advanced_grok:
+            from gateway.grok_chat import generate
+            if not self.slots.acquire(blocking=False):
+                raise Failure(429, 'gateway_busy')
+            try:
+                message = generate(body)
+                return {'id': 'grok-bridge-' + secrets.token_hex(8), 'object': 'chat.completion',
+                        'created': int(time.time()), 'model': body['model'], 'choices': [
+                            {'index': 0, 'message': message,
+                             'finish_reason': 'tool_calls' if message.get('tool_calls') else 'stop'}]}
+            finally:
+                self.slots.release()
         if path == '/v1/images/generations' and isinstance(body.get('model'), str) and body['model'].split('/', 1)[0] in ('chatgpt', 'gemini') and '/' in body['model']:
             from gateway.subscription_images import generate
             if not self.slots.acquire(blocking=False):
