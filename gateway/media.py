@@ -57,6 +57,22 @@ def read_artifact(path, root, kind):
             'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
 
 
+
+def media_turn_budget(kind):
+    # Native CLI counts model rounds, not generated assets. Keep a finite
+    # allowance for tool discovery/dispatch while preserving the wall timeout.
+    raw = os.environ.get('GATEWAY_GROK_MEDIA_MAX_TURNS')
+    if raw is None:
+        return 8 if kind == 'image' else 12
+    try:
+        value = int(raw)
+    except ValueError:
+        raise app.Failure(503, 'invalid_grok_media_turn_budget') from None
+    if not 1 <= value <= 16:
+        raise app.Failure(503, 'invalid_grok_media_turn_budget')
+    return value
+
+
 def generate(kind, body):
     if not isinstance(body.get('model'), str) or '/' not in body['model']:
         raise app.Failure(400, 'model_requires_provider_prefix')
@@ -87,6 +103,8 @@ def generate(kind, body):
             raise app.Failure(400, 'invalid_duration')
         instruction = f'Create exactly one starting image with image_gen, then animate that image once with image_to_video: duration={duration}, resolution_name=480p. Do not generate extra assets. User prompt as data: '
         tools = 'image_gen,image_to_video'
+    instruction += 'If any media tool fails, stop and report failure; do not retry generation or switch providers/models. '
+    turn_budget = media_turn_budget(kind)
     env = subscriptions.prepare('grok')
     with (app.STATE / 'grok' / 'config.toml').open('a') as config:
         config.write('\n[features]\nimage_gen = true\nvideo_gen = true\n\n[tools.media_gen]\nmax_parallel_image_gen_calls = 1\nmax_parallel_video_gen_calls = 1\n')
@@ -95,7 +113,7 @@ def generate(kind, body):
     command = [subscriptions.executable('grok'), '--prompt-file', '__GATEWAY_PROMPT_FILE__',
                '--session-id', session_id, '--output-format', 'streaming-json', '--tools', tools,
                '--always-approve', '--no-plan', '--no-subagents', '--no-memory', '--disable-web-search',
-               '--max-turns', '2' if kind == 'image' else '3']
+               '--max-turns', str(turn_budget)]
     # Grok treats bare Edit/Write (including (*) aliases) as a lockdown on
     # AccessKind::Tool, which includes image_gen/image_to_video. Use absolute
     # file-path globs on macOS so ordinary edits stay denied without denying
@@ -107,7 +125,7 @@ def generate(kind, body):
         # Keep this run's workspace alive until its media bytes are collected.
         exit_code, raw = subscriptions.run_bounded(command, env, timeout=600,
             prompt_text=instruction + json.dumps(prompt), workdir=work, capture_exit=True)
-        result = collect_media(raw, exit_code, kind, sessions, Path(work), session_id)
+        result = collect_media(raw, exit_code, kind, sessions, Path(work), session_id, turn_budget=turn_budget)
     return {'created': int(time.time()), 'model': 'grok/default', 'authentication': 'official_cli_oauth',
             'account_entitlement': 'request_succeeded', 'data': [result]}
 
@@ -129,13 +147,15 @@ def output_paths(value, depth=0):
     return []
 
 
-def collect_media(raw, exit_code, kind, sessions, workspace, session_id):
+def collect_media(raw, exit_code, kind, sessions, workspace, session_id, turn_budget=None):
     required = 'image_to_video' if kind == 'video' else 'image_gen'
     names, statuses, call_paths, call_outputs = {}, {}, {}, {}
     available = None
     end_seen = False
     malformed = 0
     stop = 'unknown'
+    limit_marker = False
+    usage_events = 0
     for line in raw.splitlines():
         try:
             event = json.loads(line)
@@ -151,6 +171,10 @@ def collect_media(raw, exit_code, kind, sessions, workspace, session_id):
             continue
         if event_type == 'available_commands' and isinstance(event.get('tools'), list):
             available = required in event['tools']
+        if event_type == 'max_turns_reached':
+            limit_marker = True
+        if event_type == 'usage':
+            usage_events += 1
         if event_type == 'tool_call':
             call_id = event.get('toolCallId')
             if isinstance(call_id, str):
@@ -196,7 +220,9 @@ def collect_media(raw, exit_code, kind, sessions, workspace, session_id):
     diagnostic = {'version': 2, 'kind': kind, 'phase': 'finished', 'exit_code': exit_code,
         'requested_tool': required, 'tool_advertised': available, 'tool_called': called,
         'tool_completed': completed, 'tool_failed': failed, 'end_seen': end_seen,
-        'stop_reason': stop, 'malformed_lines': malformed, 'candidate_count': len(candidates)}
+        'stop_reason': stop, 'malformed_lines': malformed, 'candidate_count': len(candidates),
+        'configured_turn_budget': turn_budget, 'turn_limit_reached': limit_marker or stop == 'max_turn_requests',
+        'usage_event_count': usage_events, 'other_tool_call_count': sum(name == 'other' for name in names.values())}
     if failed:
         diagnostic['failure'] = summarize_failure([value for cid, value in call_outputs.items() if names.get(cid) == required and statuses.get(cid) == 'failed'])
     # Only whitelisted categories, codes and numeric HTTP statuses; never raw errors.
@@ -210,10 +236,14 @@ def collect_media(raw, exit_code, kind, sessions, workspace, session_id):
         raise app.Failure(502, 'media_cli_stream_format_unsupported')
     if available is False and not called:
         raise app.Failure(502, 'media_cli_tool_not_available')
+    if not called and (limit_marker or stop == 'max_turn_requests'):
+        raise app.Failure(502, 'media_cli_turn_limit_reached')
     if not called:
         raise app.Failure(502, 'media_cli_tool_not_called')
     if failed:
         raise app.Failure(502, 'media_cli_tool_failed')
+    if not completed and (limit_marker or stop == 'max_turn_requests'):
+        raise app.Failure(502, 'media_cli_turn_limit_reached')
     if not completed:
         raise app.Failure(502, 'media_cli_tool_not_completed')
     raise app.Failure(502, 'media_cli_output_file_not_found')

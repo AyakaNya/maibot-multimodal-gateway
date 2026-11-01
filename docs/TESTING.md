@@ -1,3 +1,7 @@
+# Grok 媒體模型輪數上限
+
+Python 39/39 通過。新增使用者回報的 available=true、called=false、exit=1、max_turn_requests 場景，現在獨立回報 media_cli_turn_limit_reached；測試有限預算、非法預算拒絕、完成產物在上限退出時仍可回傳。尚未在使用者真實 CLI／訂閱驗證生成。
+
 # 媒體權限規則回歸修正
 
 媒體命令將裸 Edit/Write 改成 macOS 絕對檔案路徑 glob，避免原生 image_gen 被全域 Tool lockdown 誤擋。既有媒體圖／影片測試加入 CLI 參數契約檢查：拒絕 shell、檔案、web/MCP 並保留媒體 allowlist。這是本地測試與官方原始碼核對，不宣稱已實測使用者帳號。

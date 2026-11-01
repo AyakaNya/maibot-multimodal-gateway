@@ -101,7 +101,7 @@ python3 -m unittest discover -s tests -v
 node tests/chatgpt.test.mjs
 ```
 
-目前 Python 36 項與 Node 3 項程式測試通過；真實 Mac、官方 CLI binary、Keychain、瀏覽器登入及服務商端到端呼叫仍待驗證。
+目前 Python 39 項與 Node 3 項程式測試通過；真實 Mac、官方 CLI binary、Keychain、瀏覽器登入及服務商端到端呼叫仍待驗證。
 
 - [Google Ultra / Antigravity 修正](docs/ANTIGRAVITY.md)
 - [DSH 端點、認證及宿主邊界](docs/DSH-REVIEW.md)

@@ -126,3 +126,15 @@ python3 -m gateway.app serve
 # 另一個終端：
 python3 scripts/media-poc.py --backend cli --kind image --prompt '白色桌上的紅蘋果'
 ```
+
+### 修正：max_turn_requests 在圖片工具尚未呼叫前退出
+
+使用者回報 `exit_code=1, tool_advertised=true, tool_called=false, stop_reason=max_turn_requests`。舊設定生圖 `--max-turns 2`、影片 `--max-turns 3` 過於緊縮，而且錯誤分類先回報 tool_not_called，掩蓋了真正的停止條件。
+
+[官方 headless 文件](https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-pager/docs/user-guide/14-headless-mode.md) 說明該上限計算 main-agent model rounds，而不是生成圖片數。新版預設生圖 8 輪、影片 12 輪；仍有限，保留單一程序、600 秒 timeout、工具 allowlist、檔案路徑 deny、shell／web／MCP deny 及不切換 API key。
+
+如需自行控制預算，可在啟動 Gateway 的同一終端設定 `GATEWAY_GROK_MEDIA_MAX_TURNS`，只接受 1–16 的整數；未設定採上述預設。增加模型輪數可能增加訂閱使用量，不代表只會消耗一張圖片的額度；CLI 代理仍非固定參數的直接 API 呼叫。Gateway 不因上限錯誤再啟動第二次生成，提示也明確要求媒體工具失敗時停止。
+
+碰到上限且沒有完成產物，現在回 `media_cli_turn_limit_reached`，不是 tool_not_called；有原生工具已完成且媒體有效的情況仍回傳該產物。診斷增加 `configured_turn_budget`、`turn_limit_reached`、`usage_event_count` 與 `other_tool_call_count`，不保存提示詞或任意工具名稱。usage event 數量不等同精確模型輪數。
+
+更新後需先 Ctrl+C 停止舊 Gateway、`git pull --ff-only`、重新 `python3 -m gateway.app serve`，才會採用新上限。不需重新登入。該記錄不能證明模型為何在前幾輪沒有呼叫 image_gen，也不能保證提高上限即一定生圖成功；本輪修正的是過低預設及誤分類，不宣稱帳號權限已通過。

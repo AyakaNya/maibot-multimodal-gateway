@@ -76,3 +76,28 @@ sys.exit(1)
         self.assertEqual(exit_code,1)
         self.assertTrue((self.work/'1.png').exists())
         self.assertEqual(base64.b64decode(self.collect(raw,exit_code)['b64_json']),PNG)
+
+    def test_reported_no_tool_max_turn_requests_is_not_generic_not_called(self):
+        raw=events({'type':'available_commands','tools':['image_gen']},
+            {'type':'max_turns_reached'},
+            {'type':'end','sessionId':'this-session','stopReason':'max_turn_requests'})
+        with self.assertRaises(app.Failure) as caught:
+            media.collect_media(raw,1,'image',self.sessions,self.work,'this-session',turn_budget=2)
+        self.assertEqual(caught.exception.code,'media_cli_turn_limit_reached')
+        diagnostic=json.loads(app.read_secret('media-diagnostic.json'))
+        self.assertTrue(diagnostic['turn_limit_reached'])
+        self.assertEqual(diagnostic['configured_turn_budget'],2)
+        self.assertFalse(diagnostic['tool_called'])
+
+    def test_turn_limit_after_completion_keeps_valid_image(self):
+        path=self.work/'1.png';path.write_bytes(PNG)
+        result=self.collect(events(started(),done(path),{'type':'end','stopReason':'max_turn_requests'}),code=1)
+        self.assertEqual(base64.b64decode(result['b64_json']),PNG)
+
+    def test_turn_budget_is_finite_and_invalid_values_do_not_run(self):
+        with patch.dict(media.os.environ,{},clear=True):
+            self.assertEqual(media.media_turn_budget('image'),8)
+            self.assertEqual(media.media_turn_budget('video'),12)
+        for value in ('0','17','unlimited','-1'):
+            with patch.dict(media.os.environ,{'GATEWAY_GROK_MEDIA_MAX_TURNS':value}), self.assertRaises(app.Failure):
+                media.media_turn_budget('image')
