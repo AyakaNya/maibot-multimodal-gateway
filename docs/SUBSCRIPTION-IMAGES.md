@@ -4,7 +4,7 @@
 
 | Gateway model | 執行方式 | 登入 | 實測狀態 |
 |---|---|---|---|
-| `chatgpt/default` | 官方 Codex app-server 原生 `image_gen.imagegen` | 本專案獨立 `codex login`，ChatGPT Plus 帳號 | 使用者回報工具完成；取圖相容修正待 Mac 驗證 |
+| `chatgpt/default` | 官方 Codex app-server 原生 `image_gen.imagegen` | 本專案獨立 `codex login`，ChatGPT Plus 帳號 | 使用者已回報 Gateway 生圖成功 |
 | `gemini/default` | 官方 Antigravity CLI 原生 `generate_image` | 官方 agy 個人 Google 帳號／Ultra | 參數與模擬生成通過，帳號生成待驗證 |
 | `grok/default` | 官方 Grok CLI 原生媒體工具 | 官方 Grok 登入 | 使用者已回報圖片與影片成功 |
 
@@ -28,7 +28,7 @@ python3 -m gateway.app login-images --provider gemini
 
 ChatGPT 選擇 ChatGPT 帳號登入，使用 Plus 帳號。登入由官方 Codex CLI 完成，憑證使用 native auto 儲存方式（可用時使用系統 keyring，否則保存在專案受保護目錄）；Gateway 不解析憑證。獨立 profile 是 `.state/codex-images/`，不是你全域 `~/.codex`，也不是先前文字 SIWC 登入。**之前文字登入成功，仍需完成這次 Codex 圖片登入。**
 
-Google 使用已綁定 Ultra 的個人帳號；之前已登入 agy 可沿用。維持 agy `/config` 中 Tool Permission = strict，退出 `/quit`。不要使用舊 Gemini Code Assist 登入。Gateway 會拒絕共享 hooks／MCP／plugins、customModelsConfig 與 API／Cloud project 設定，避免執行未審查擴充或使用其他計費來源。
+Google 使用已綁定 Ultra 的個人帳號；之前已登入 agy 可沿用。生圖不要求更改全域 Tool Permission，使用新版 agy 的本次設定；若另使用文字路由，該路由仍要求全域 strict。登入完成後退出 `/quit`。不要使用舊 Gemini Code Assist 登入。Gateway 會拒絕共享 hooks／MCP／plugins、customModelsConfig 與 API／Cloud project 設定，避免執行未審查擴充或使用其他計費來源。
 
 然後啟動新版：
 
@@ -105,3 +105,14 @@ python3 scripts/media-poc.py --provider chatgpt --kind image --prompt '白色桌
 ```
 
 60 項 Python 測試通過，包括兩種根目錄／檔案路徑表示的互通、Codex inline／savedPath、目錄 fd 防止替換連結逸出、內部 symlink／越界拒絕與取圖診斷。本輪未使用真實訂閱重新生成。
+
+
+## Gemini 生圖的全域 strict 誤擋修正
+
+使用者已回報 GPT 圖片成功；Gemini 在生成前回 503 antigravity_set_toolPermission_strict_in_config。原因是生圖已提供本次 --settings 覆蓋，卻仍呼叫文字路由的 strict 前置檢查。
+
+新版生圖不要求全域 strict；settings.json 不存在或未設定 toolPermission 時也可使用本次受限設定，不會建立或改寫全域檔。損毀／無法讀取／格式不符的設定仍明確拒絕。文字路由尚未使用本次覆蓋，保留原 strict 要求。
+
+原有 permissions.allow／ask／deny 全數保留，再附加 command／MCP／web deny。覆蓋設定放在本次 0700 工作目錄下的 0600 暫存檔，透過 --settings 檔案路徑傳入，不將私人規則寫入程序參數。舊 CLI 不支援 --settings 時仍在生成前拒絕；個人帳號、API／Cloud 設定與共享擴充檢查不變。
+
+停止舊 Gateway，git pull --ff-only，再用 python3 -m gateway.app serve 重啟；另開終端執行原 Gemini 圖片 PoC 即可。64 項 Python 測試通過；這確認 Gateway 設定誤擋已修正，不代表 Ultra 上游生成已實測成功。

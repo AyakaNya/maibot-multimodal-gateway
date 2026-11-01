@@ -2,14 +2,14 @@
 
 供 macOS 本機單使用者使用的獨立 Gateway，研究及接入 ChatGPT Plus、SuperGrok、Google AI Ultra。僅監聽 `127.0.0.1:8790`，需要獨立 Gateway key；不修改 MaiBot 核心、不接正式 QQ、不依賴 DSH 宿主。
 
-**目前為原型。** 使用者已回報 macOS／SuperGrok 官方 CLI 圖片生成成功；影片在使用者調整 ZDR 設定後也回報成功。Plus／Ultra 訂閱圖片路由已實作，仍待使用者帳號驗證；程式測試使用模擬上游。
+**目前為原型。** 使用者已回報 macOS／SuperGrok 官方 CLI 圖片生成成功；影片在使用者調整 ZDR 設定後也回報成功。使用者也已回報 GPT Plus 生圖成功；Ultra 訂閱圖片路由已實作，仍待使用者帳號驗證；程式測試使用模擬上游。
 
 ## 功能狀態
 
 | 路由／登入方式 | 文字 | 圖片 | 影片 | 語音 |
 |---|---|---|---|---|
 | ChatGPT 官方 Sign in with ChatGPT | adapter 已實作 | 此 SIWC 路徑不支援 | 未接入 | 未接入 |
-| ChatGPT Plus → 官方 Codex app-server | 沿用 SIWC 文字路由 | 原生 image_gen 工具完成；取圖相容修正待 Mac 驗證 | 未接入 | 未接入 |
+| ChatGPT Plus → 官方 Codex app-server | 沿用 SIWC 文字路由 | 原生 image_gen，使用者回報成功 | 未接入 | 未接入 |
 | Grok 官方 CLI | adapter 已實作 | 原生 image_gen，使用者回報成功 | 先生圖再 image_to_video，使用者回報成功 | 未接入 |
 | Grok 獨立核准 OAuth session | 已實作 | 直接生成／編輯 | 直接文生／圖生影片 | 未接入 |
 | Google AI Ultra → 官方 Antigravity CLI `agy` | adapter 已實作 | 原生 generate_image 已接入，帳號待測 | 未驗證 | 未驗證 |
@@ -54,7 +54,7 @@ python3 -m gateway.app login --provider grok
 python3 -m gateway.app login --provider gemini
 ```
 
-Google 登入使用綁定 Ultra 的個人帳號，在 agy `/config` 設 **Tool Permission = strict**，然後 `/quit`。這是 agy 共用設定，會影響其他 agy sessions；Gateway 不會替你修改。若有全域 hooks／MCP／plugins，會要求先審查並暫停接入，詳見 [遷移指南](docs/ANTIGRAVITY.md)。
+Google 登入使用綁定 Ultra 的個人帳號。文字路由需在 agy `/config` 設 **Tool Permission = strict**，然後 `/quit`；生圖路由使用本次設定覆蓋，不要求更改全域權限。這是 agy 共用設定，會影響其他 agy sessions；Gateway 不會替你修改。若有全域 hooks／MCP／plugins，會要求先審查並暫停接入，詳見 [遷移指南](docs/ANTIGRAVITY.md)。
 
 ```bash
 python3 -m gateway.app serve
@@ -89,7 +89,7 @@ python3 scripts/media-poc.py --provider chatgpt --kind image --prompt '白色桌
 python3 scripts/media-poc.py --provider gemini --kind image --prompt '白色桌上的紅蘋果'
 ```
 
-Codex 圖片登入與原 SIWC 文字登入分開。Gemini 使用新版 agy 的本次設定覆蓋，維持全域 strict。完整更新／登入／呼叫與限制見 [訂閱生圖指南](docs/SUBSCRIPTION-IMAGES.md)。
+Codex 圖片登入與原 SIWC 文字登入分開。Gemini 使用新版 agy 的本次設定覆蓋，不要求全域 strict，也不修改全域設定。完整更新／登入／呼叫與限制見 [訂閱生圖指南](docs/SUBSCRIPTION-IMAGES.md)。
 
 ## 更新
 
@@ -121,7 +121,7 @@ python3 -m unittest discover -s tests -v
 node tests/chatgpt.test.mjs
 ```
 
-目前 Python 60 項與 Node 3 項程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT／Gemini 訂閱生圖仍待使用者 Mac 帳號端到端驗證。
+目前 Python 64 項與 Node 3 項程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT Plus 訂閱生圖也已由使用者回報成功，Gemini Ultra 仍待帳號端到端驗證。
 
 - [Plus／Ultra 訂閱生圖](docs/SUBSCRIPTION-IMAGES.md)
 - [Google Ultra / Antigravity 修正](docs/ANTIGRAVITY.md)

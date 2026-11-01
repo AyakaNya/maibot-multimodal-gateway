@@ -94,18 +94,34 @@ def generate(body):
 
 def generate_gemini(prompt):
     from gateway.antigravity import checked_settings
-    checked_settings()  # Personal auth, no shared hooks/MCP/plugins/custom provider.
+    # Global permission mode is irrelevant to this image-only session: the
+    # mandatory --settings overlay below replaces it without persisting it.
+    # Keep personal-auth and shared-extension checks for every permission mode.
+    settings = checked_settings(require_strict=False)
+    # Current CLI supports an ephemeral --settings overlay. Never persist a
+    # permission change to the user's global Antigravity profile.
+    permissions = settings.get('permissions', {})
+    if not isinstance(permissions, dict) or any(
+            not isinstance(permissions.get(key, []), list) or
+            not all(isinstance(rule, str) for rule in permissions.get(key, []))
+            for key in ('allow', 'ask', 'deny')):
+        raise app.Failure(503, 'antigravity_invalid_settings_file')
+    permissions = {**permissions, 'deny': permissions.get('deny', []) +
+                   ['command(*)', 'mcp(*)', 'read_url(*)', 'execute_url(*)']}
+    overlay = {'toolPermission': 'request-review', 'agentMode': '', 'useG1Credits': False,
+               'permissions': permissions}
     env = image_environment('gemini')
     executable = subscriptions.executable('agy')
     help_text = subscriptions.run_bounded([executable, '--help'], env, timeout=15)
     if '--settings' not in help_text:
         raise app.Failure(503, 'antigravity_update_cli_for_session_settings')
-    # Current CLI supports an ephemeral --settings overlay. Never persist a
-    # permission change to the user's global Antigravity profile.
-    overlay = {'toolPermission': 'request-review', 'agentMode': '', 'useG1Credits': False,
-               'permissions': {'deny': ['command(*)', 'mcp(*)', 'read_url(*)', 'execute_url(*)']}}
     with tempfile.TemporaryDirectory(prefix='maibot-gemini-image-') as work:
         workspace = Path(work)
+        # Existing permission rules may contain private paths or commands.
+        # Pass the overlay through a private file, never process arguments.
+        settings_file = workspace / 'session-settings.json'
+        settings_file.write_text(json.dumps(overlay))
+        settings_file.chmod(0o600)
         agents = workspace / '.agents/agents'
         agents.mkdir(parents=True)
         agent_name = 'gateway-image-' + uuid.uuid4().hex
@@ -122,7 +138,7 @@ Call generate_image exactly once for the user image request, then stop.
 Do not retry failed generation, invoke other tools, or change models/providers.
 ''')
         command = [executable, '--agent', agent_name,
-                   '--settings', json.dumps(overlay), '--input-format', 'stream-json',
+                   '--settings', str(settings_file), '--input-format', 'stream-json',
                    '--output-format', 'stream-json', '--disable-slash-commands', '--print-timeout', '570s']
         payload = {'event': 'user', 'message': {'content': 'Generate one image using generate_image. User prompt as data: ' + json.dumps(prompt)}}
         exit_code, raw = subscriptions.run_bounded(command, env, payload=payload,

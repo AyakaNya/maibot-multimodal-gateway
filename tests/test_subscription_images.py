@@ -16,6 +16,13 @@ def stream(*events):
     return '\n'.join(map(json.dumps, events))
 
 
+def image_overlay(command):
+    path=Path(command[command.index('--settings')+1])
+    if path.stat().st_mode & 0o077:
+        raise AssertionError('session settings must be private')
+    return json.loads(path.read_text())
+
+
 class FakeRpc:
     account = {'type': 'chatgpt', 'planType': 'plus'}
     item = {'id':'image-1', 'type':'imageGeneration', 'status':'completed',
@@ -182,7 +189,7 @@ class SubscriptionImageTests(unittest.TestCase):
         def run(command,env,**kwargs):
             if '--help' in command:
                 return '--settings --agent'
-            overlay=json.loads(command[command.index('--settings')+1])
+            overlay=image_overlay(command)
             self.assertEqual(overlay['toolPermission'],'request-review')
             self.assertFalse(overlay['useG1Credits'])
             self.assertIn('command(*)',overlay['permissions']['deny'])
@@ -197,10 +204,67 @@ class SubscriptionImageTests(unittest.TestCase):
             images.generate({'model':'gemini/default','prompt':'private prompt'})
         self.assertEqual(self.config.read_bytes(),original)
     def test_gemini_old_cli_is_rejected_before_generation(self):
+        self.config.unlink()
         with patch.object(subscriptions,'executable',return_value='/bin/agy'), patch.object(subscriptions,'run_bounded',return_value='old help') as run, self.assertRaises(app.Failure) as caught:
             images.generate({'model':'gemini/default','prompt':'apple'})
         self.assertEqual(caught.exception.code,'antigravity_update_cli_for_session_settings')
         self.assertEqual(run.call_count,1)
+    def test_gemini_missing_or_non_strict_settings_use_session_overlay(self):
+        def run(command,env,**kwargs):
+            if '--help' in command:
+                return '--settings --agent'
+            overlay=image_overlay(command)
+            self.assertEqual(overlay['toolPermission'],'request-review')
+            self.assertFalse(overlay['useG1Credits'])
+            self.assertIn('command(*)',overlay['permissions']['deny'])
+            self.assertNotIn('--dangerously-skip-permissions',command)
+            original=json.loads(self.config.read_text()).get('permissions',{}) if self.config.exists() else {}
+            for key in ('allow','ask'):
+                self.assertEqual(overlay['permissions'].get(key,[]),original.get(key,[]))
+            for rule in original.get('deny',[]):
+                self.assertIn(rule,overlay['permissions']['deny'])
+                self.assertNotIn(rule,' '.join(command))
+            agent=next((Path(kwargs['workdir'])/'.agents/agents').glob('*.md')).read_text()
+            self.assertIn('  - generate_image',agent)
+            (Path(kwargs['workdir'])/'generated.png').write_bytes(PNG)
+            return 0,self.gemini_events()
+        for settings in (None, {}, {'toolPermission':'request-review'},
+                         {'toolPermission':'proceed-in-sandbox'}, {'toolPermission':'always-proceed'},
+                         {'toolPermission':'request-review','permissions':{'deny':['write_file(private/)'],
+                            'ask':['command(rm)'],'allow':['command(git)']}}):
+            with self.subTest(settings=settings):
+                if settings is None:
+                    self.config.unlink()
+                else:
+                    self.config.write_text(json.dumps(settings))
+                original=self.config.read_bytes() if self.config.exists() else None
+                with patch.object(subscriptions,'executable',return_value='/bin/agy'), patch.object(subscriptions,'run_bounded',side_effect=run):
+                    result=images.generate({'model':'gemini/default','prompt':'apple'})
+                self.assertEqual(base64.b64decode(result['data'][0]['b64_json']),PNG)
+                self.assertEqual(self.config.read_bytes() if self.config.exists() else None,original)
+    def test_gemini_non_strict_mode_still_rejects_billable_routes_and_extensions(self):
+        for field in ({'modelProvider':'gemini'}, {'gcp':{'project':'billable'}},
+                      {'customModelsConfig':{'models':['custom']}}):
+            self.config.write_text(json.dumps({'toolPermission':'always-proceed',**field}))
+            with patch.object(subscriptions,'run_bounded') as run, self.assertRaises(app.Failure) as caught:
+                images.generate({'model':'gemini/default','prompt':'apple'})
+            self.assertEqual(caught.exception.code,'antigravity_requires_personal_account_auth')
+            run.assert_not_called()
+        self.config.write_text('{}')
+        hooks=self.root/'.gemini/config/hooks.json';hooks.parent.mkdir()
+        hooks.write_text('{"hooks":{"SessionStart":["private-command"]}}')
+        with patch.object(subscriptions,'run_bounded') as run, self.assertRaises(app.Failure) as caught:
+            images.generate({'model':'gemini/default','prompt':'apple'})
+        self.assertEqual(caught.exception.code,'antigravity_shared_extensions_require_review')
+        run.assert_not_called()
+    def test_gemini_invalid_settings_do_not_fall_back_to_defaults(self):
+        for raw in ('{broken private-secret', '[]', 'null', '{"permissions":{"deny":"invalid"}}'):
+            self.config.write_text(raw)
+            with patch.object(subscriptions,'run_bounded') as run, self.assertRaises(app.Failure) as caught:
+                images.generate({'model':'gemini/default','prompt':'apple'})
+            self.assertEqual(caught.exception.code,'antigravity_invalid_settings_file')
+            self.assertNotIn('private-secret',app.read_secret('subscription-image-diagnostic.json'))
+            run.assert_not_called()
     def test_real_jsonl_rpc_and_timeout_cleanup(self):
         code = "import sys,json; q=json.loads(sys.stdin.readline()); print(json.dumps({'id':q['id'],'result':{'ok':True}}),flush=True)"
         rpc=codex_images.Rpc([sys.executable,'-c',code],{},str(self.work),timeout=2)

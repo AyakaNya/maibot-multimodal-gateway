@@ -41,6 +41,16 @@ class AntigravityTests(unittest.TestCase):
         with self.assertRaises(app.Failure) as caught:
             antigravity.checked_settings()
         self.assertEqual(caught.exception.code,'antigravity_shared_extensions_require_review')
+    def test_text_still_requires_global_strict_without_a_session_overlay(self):
+        for settings in (None, {}, {'toolPermission':'request-review'}):
+            if settings is None:
+                self.config.unlink()
+            else:
+                self.config.write_text(json.dumps(settings))
+            with patch.object(subscriptions,'run_bounded') as run, self.assertRaises(app.Failure) as caught:
+                antigravity.generate('default',[],{})
+            self.assertEqual(caught.exception.code,'antigravity_set_toolPermission_strict_in_config')
+            run.assert_not_called()
     def test_failed_or_missing_result_not_text_success(self):
         for response in ('{"event":"init"}', '{"event":"result","result":{"status":"ERROR","response":"not success"}}'):
             with patch.object(subscriptions,'executable',return_value='/bin/agy'), patch.object(subscriptions,'run_bounded',return_value=response), self.assertRaises(app.Failure):

@@ -63,7 +63,7 @@ def chatgpt_command(command):
 def login(provider):
     env = prepare(provider)
     command = chatgpt_command('login') if provider == 'chatgpt' else [executable('grok'), 'login'] if provider == 'grok' else [executable('agy')]
-    print('Complete browser sign-in. Google AI Ultra uses Antigravity (agy). For Google, set Tool Permission to strict in /config, then /quit. Settings are shared with your other agy sessions.')
+    print('Complete browser sign-in. Google AI Ultra uses Antigravity (agy). For Google text routes, set Tool Permission to strict in /config, then /quit. Image routes use a per-session permission override. Global settings are shared with your other agy sessions.')
     with tempfile.TemporaryDirectory(prefix='maibot-login-') as work:
         return subprocess.call(command, env=env, cwd=work)
 

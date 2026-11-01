@@ -1,3 +1,9 @@
+# Gemini 生圖不再要求全域 strict
+
+Python 64/64 通過。新增缺少／預設／非 strict 全域設定下的生圖本次覆蓋、全域設定不變、原 permissions 規則保留、0600 暫存設定檔、API／Cloud／共享 hook 拒絕、損毀設定拒絕及文字仍要求 strict。舊 CLI 在缺少全域設定時也必須通過 --settings 支援檢查，不會退回全域權限。
+
+使用者已回報 GPT Gateway 生圖成功。Gemini 本次失敗發生於 Gateway 前置設定檢查；修正尚待 Mac 真實 Ultra 生圖驗證，本輪未呼叫服務商。以下保留歷史測試記錄。
+
 # macOS 可信目錄別名與圖片取回
 
 Python 60/60 通過。先以真實本機目錄 symlink 重現 unsafe_media_path，再驗證可信目錄的 ancestor alias／canonical 路徑組合、Codex inline 與 savedPath、artifact_collected 診斷。逐層 dir_fd／O_NOFOLLOW 檢查仍拒絕產物 symlink、越界和 ..；目錄換成 symlink 的競態測試確認讀取 pinned directory，不跟隨外部目標。

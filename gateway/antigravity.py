@@ -7,14 +7,20 @@ from pathlib import Path
 from gateway import app
 
 
-def checked_settings():
+def checked_settings(*, require_strict=True):
     base = Path.home() / '.gemini'
     settings_path = base / 'antigravity-cli/settings.json'
     try:
         settings = json.loads(settings_path.read_text())
+    except FileNotFoundError:
+        settings = {}
     except (OSError, ValueError):
-        raise app.Failure(503, 'antigravity_set_toolPermission_strict_in_config') from None
-    if not isinstance(settings, dict) or settings.get('toolPermission') != 'strict':
+        raise app.Failure(503, 'antigravity_invalid_settings_file') from None
+    if not isinstance(settings, dict):
+        raise app.Failure(503, 'antigravity_invalid_settings_file')
+    # Text has no session permission overlay. The image adapter instead checks
+    # --settings support and supplies its own constrained per-session policy.
+    if require_strict and settings.get('toolPermission') != 'strict':
         raise app.Failure(503, 'antigravity_set_toolPermission_strict_in_config')
     # Native default account authentication is the subscription path. Refuse
     # custom providers / enterprise project routing, rather than silently billing.
