@@ -114,6 +114,16 @@ git pull --ff-only
 
 原生 CLI 的多輪歷史以 JSON conversation 輸入，與原生 Chat Completions role 語義不完全相同。CLI 工具權限限制不是完整 OS sandbox，僅供受信任本機使用者；不要反向代理公開服務。
 
+## MaiBot 插件
+
+已新增獨立 Host/Runner 插件，目標 MaiBot 1.3.19／SDK 2.21.x。保持 Gateway 運行，在此專案目錄執行：
+
+```bash
+python3 scripts/install-maibot-plugin.py --maibot-dir /你的/MaiBot --gateway-key-file "$PWD/.state/gateway.key"
+```
+
+先在 Mai Chat 輸入 `/mm status`，設定插件啟用及測試流 allowlist，再用 `/mm image gpt 白色桌上的紅蘋果` 或 `/mm chat grok 你好`。Grok 影片走可選工具與 Host 檔案服務。完整步驟與限制見 [MaiBot 插件指南](docs/MAIBOT.md)。不修改核心；未連接正式 QQ，真實 Host 傳送仍待本機驗證。
+
 ## 測試及文件
 
 ```bash
@@ -121,13 +131,13 @@ python3 -m unittest discover -s tests -v
 node tests/chatgpt.test.mjs
 ```
 
-目前 Python 80 項與 Node 3 項程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT Plus 訂閱生圖也已由使用者回報成功，Gemini Ultra 仍待帳號端到端驗證。
+目前 Gateway Python 80 項、Node 3 項及獨立插件／安裝 19 項程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT Plus 訂閱生圖也已由使用者回報成功，Gemini Ultra 仍待帳號端到端驗證。
 
 - [Plus／Ultra 訂閱生圖](docs/SUBSCRIPTION-IMAGES.md)
 - [Google Ultra / Antigravity 修正](docs/ANTIGRAVITY.md)
 - [DSH 端點、認證及宿主邊界](docs/DSH-REVIEW.md)
 - [CLI 媒體合約及限制](docs/MEDIA.md)
 - [測試記錄](docs/TESTING.md)
-- [MaiBot 最小接入方案](docs/MAIBOT.md)
+- [MaiBot 插件安裝與使用](docs/MAIBOT.md)
 
 歷史審查資料中的能力狀態與舊登入指引可能已失效，以本 README 及對應更新文件為準。`research/` 為開發環境本機研究快照，不隨倉庫發布；原始碼證據以文件中的固定 commit 連結查閱。

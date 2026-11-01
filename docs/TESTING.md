@@ -1,3 +1,11 @@
+# MaiBot 插件 0.1.0
+
+目標 MaiBot 1.3.19、maibot-plugin-sdk 2.21.0。插件／安裝 19/19、Gateway Python 80/80、Node 3/3 通過。插件測試在獨立 Python 3.12 venv 使用真實官方 SDK，模擬 Host RPC 與提供者，透過本機 Gateway HTTP 和官方 files.upload 的實際 HTTP PUT 驗證傳輸。
+
+涵蓋新版 ContextItem／舊文字 Provider、manifest 與裝飾器一致、Runner 相對 import 載入、圖片驗證及發送回執、影片檔案作用域缺失先拒絕、送達 unknown 不重試、取消請求不提前釋放槽、非 internal／非允許流拒絕、401、安裝不複製 key、不改核心、更新保留設定與拒絕 symlink。未啟動完整 MaiBot Host 或連接正式 QQ，未使用真實訂閱生成；既有使用者 Gateway 成功回報不代表插件真實聊天傳送已驗證。
+
+以下保留歷史測試記錄。
+
 # Antigravity help stderr 能力探測修正
 
 Python 80/80 通過。以官方 agy 1.4.12 實測 --help：exit 0、stdout 0 bytes、stderr 3048 bytes，--settings 在 stderr。新版限定獨立 --help 探測可合併兩個通道；經實際 run_bounded 探測 session_settings_supported:true。

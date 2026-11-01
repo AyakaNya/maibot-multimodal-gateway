@@ -1,0 +1,21 @@
+[plugin]
+enabled = false
+config_version = "0.1.0"
+
+[gateway]
+base_url = "http://127.0.0.1:8790"
+# Fill an absolute path on the SAME Mac/user as the MaiBot Runner.
+key_file = ""
+timeout_seconds = 630.0
+
+[access]
+# Use /mm status in Mai Chat to find its current internal stream ID.
+allowed_stream_ids = []
+cooldown_seconds = 5.0
+
+[features]
+text_enabled = true
+image_enabled = true
+tools_enabled = false
+video_enabled = false
+llm_provider_enabled = false
