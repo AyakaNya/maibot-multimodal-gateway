@@ -1,3 +1,7 @@
+# MaiBot 實例目錄安裝修正
+
+插件／安裝 21/21 通過。新增無 bot.py／pyproject 的實例安裝測試、版本必填與範圍檢查、缺少實例目錄拒絕；確認只新增插件、保留既有 config 與內層程式目錄。官方 `src/common/paths.py` 確認安裝版使用 `maibot run --directory` 與獨立 instance root。沒有在使用者 BSX 目錄操作或啟動 Host；此修正不改插件生成／傳送程式。以下保留歷史記錄。
+
 # MaiBot 插件 0.1.0
 
 目標 MaiBot 1.3.19、maibot-plugin-sdk 2.21.0。插件／安裝 19/19、Gateway Python 80/80、Node 3/3 通過。插件測試在獨立 Python 3.12 venv 使用真實官方 SDK，模擬 Host RPC 與提供者，透過本機 Gateway HTTP 和官方 files.upload 的實際 HTTP PUT 驗證傳輸。

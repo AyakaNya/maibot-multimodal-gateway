@@ -48,6 +48,21 @@ cooldown_seconds = 5.0
 
 更新插件使用同一安裝命令加 `--update`，既有 `config.toml` 原樣保留。卸載先停用／卸載插件，再刪除該插件目錄，Gateway 與其登入資料不受影響。
 
+### 沒有 bot.py：獨立實例／安裝版
+
+新版 MaiBot 可將程式與實例資料分開。實例目錄只有 `config`、`data`、`plugins` 等資料夾時，不需要自行建立 `bot.py`，也不要將插件改裝進虛擬環境或內層程式目錄。以啟動命令 `maibot run --directory ...` 的 directory 為準，先從 MaiBot 啟動日誌或管理介面確認**實際 MaiBot 版本**（不是啟動器版本）。
+
+例如實例在 `~/Documents/BSX-V3`，且已確認 MaiBot 為 1.3.19，在 Gateway 專案目錄執行：
+
+```bash
+python3 scripts/install-maibot-plugin.py \
+  --instance-dir "$HOME/Documents/BSX-V3" \
+  --host-version 1.3.19 \
+  --gateway-key-file "$PWD/.state/gateway.key"
+```
+
+`1.3.19` 必須換成實際版本；不支援的版本會拒絕安裝，Host 仍會在載入時校驗 SDK／版本範圍。安裝器不執行內層 `my-maibot`，只新增指定實例的 `plugins/maibot_multimodal_gateway`，不修改既有核心、config／data 或其他插件。更新加 `--update`。此模式不會在你的 Mac 自動執行。
+
 ## 功能與實測界線
 
 | 功能 | 插件入口 | 狀態 |
@@ -103,6 +118,6 @@ python3 -m venv /tmp/maibot-plugin-test
 /tmp/maibot-plugin-test/bin/python -m unittest discover -s maibot_plugin/tests -v
 ```
 
-19 項插件／安裝測試使用真實官方 SDK、本機 Gateway HTTP、模擬提供者／Host RPC 與本機檔案上傳服務。不是完整 MaiBot Host 整合測試，未在使用者 Mac／正式 QQ 發送，也未消耗訂閱額度。完整記錄見 [TESTING.md](TESTING.md)。
+21 項插件／安裝測試使用真實官方 SDK、本機 Gateway HTTP、模擬提供者／Host RPC 與本機檔案上傳服務。不是完整 MaiBot Host 整合測試，未在使用者 Mac／正式 QQ 發送，也未消耗訂閱額度。完整記錄見 [TESTING.md](TESTING.md)。
 
 來源：[官方插件文件](https://docs.maibot.chat/plugin/)、[MaiBot 核對版本](https://github.com/Mai-with-u/MaiBot/tree/c6429547af711555e3d4d1b8d04b413572cb616c)、[SDK 核對版本](https://github.com/Mai-with-u/maibot-plugin-sdk/tree/aa9ab7b347f9d011a3e0b00addee46de8f16bf9e)。

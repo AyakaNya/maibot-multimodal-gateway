@@ -52,3 +52,31 @@ class InstallTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             installer.install(self.root)
         self.assertEqual(list(elsewhere.iterdir()), [])
+
+    def test_instance_without_source_installs_only_plugin_and_preserves_state(self):
+        (self.root / 'bot.py').unlink()
+        (self.root / 'pyproject.toml').unlink()
+        for name in ('config', 'data', 'plugins'):
+            (self.root / name).mkdir()
+        marker = self.root / 'config/bot_config.toml'
+        marker.write_text('existing-settings')
+        nested = self.root / 'my-maibot'
+        nested.mkdir()
+        (nested / 'do-not-touch').write_text('existing-runtime')
+        target = installer.install(self.root, instance_mode=True, host_version='1.3.19')
+        self.assertEqual(target.parent, self.root / 'plugins')
+        self.assertTrue((target / 'plugin.py').is_file())
+        self.assertEqual(marker.read_text(), 'existing-settings')
+        self.assertEqual((nested / 'do-not-touch').read_text(), 'existing-runtime')
+        self.assertFalse((self.root / 'bot.py').exists())
+
+    def test_instance_requires_explicit_supported_version_and_directory_layout(self):
+        for name in ('config', 'data', 'plugins'):
+            (self.root / name).mkdir()
+        for version in (None, '1.2.0', 'latest', '1.3.19.1'):
+            with self.assertRaises(ValueError):
+                installer.install(self.root, instance_mode=True, host_version=version)
+        (self.root / 'config').rmdir()
+        with self.assertRaises(ValueError):
+            installer.install(self.root, instance_mode=True, host_version='1.3.19')
+        self.assertEqual(list((self.root / 'plugins').iterdir()), [])

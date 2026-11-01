@@ -11,16 +11,29 @@ FILES = ('__init__.py', 'plugin.py', 'client.py', '_manifest.json', 'config.exam
          'requirements.txt', '.gitignore', 'README.md', 'LICENSE')
 
 
-def install(maibot_dir, *, update=False, gateway_key_file=None):
+def install(maibot_dir, *, update=False, gateway_key_file=None, instance_mode=False, host_version=None):
     maibot_dir = Path(maibot_dir).expanduser().resolve()
-    if not (maibot_dir / 'bot.py').is_file():
-        raise ValueError('目標必須是包含 bot.py 的 MaiBot 專案目錄')
+    if instance_mode:
+        # An installed MaiBot keeps code/metadata outside its instance directory.
+        # Never guess the runtime version from an unrelated nested source tree.
+        if not all((maibot_dir / name).is_dir() and not (maibot_dir / name).is_symlink()
+                   for name in ('config', 'data', 'plugins')):
+            raise ValueError('實例目錄必須已有 config、data、plugins 實體目錄；不會自動搜尋或改動其他部署')
+        if host_version is None:
+            raise ValueError('實例安裝請用 --host-version 指定實際 MaiBot 版本（不是啟動器版本）')
+        version = host_version
+    else:
+        if not (maibot_dir / 'bot.py').is_file():
+            raise ValueError('此路徑不是包含 bot.py 的原始碼目錄；獨立實例請改用 --instance-dir 與 --host-version')
+        try:
+            project = tomllib.loads((maibot_dir / 'pyproject.toml').read_text())['project']
+            version = str(project['version'])
+        except (OSError, ValueError, KeyError, TypeError):
+            raise ValueError('無法確認 MaiBot 版本；本版支援 MaiBot 1.3.19–1.3.99') from None
     try:
-        project = tomllib.loads((maibot_dir / 'pyproject.toml').read_text())['project']
-        version = str(project['version'])
         numbers = tuple(map(int, version.split('.')))
-    except (OSError, ValueError, KeyError):
-        raise ValueError('無法確認 MaiBot 版本；本版支援 MaiBot 1.3.19–1.3.99') from None
+    except (ValueError, AttributeError):
+        raise ValueError('MaiBot 版本必須是三段數字，例如 1.3.19') from None
     if len(numbers) != 3 or not (1, 3, 19) <= numbers <= (1, 3, 99):
         raise ValueError('本插件目標為 MaiBot 1.3.19–1.3.99；不修改或升級 MaiBot 核心')
     plugins = maibot_dir / 'plugins'
@@ -59,12 +72,17 @@ def install(maibot_dir, *, update=False, gateway_key_file=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--maibot-dir', required=True, type=Path)
+    destination = parser.add_mutually_exclusive_group(required=True)
+    destination.add_argument('--maibot-dir', type=Path, help='包含 bot.py 的 MaiBot 原始碼根目錄')
+    destination.add_argument('--instance-dir', type=Path, help='含 config/data/plugins 的 MaiBot 實例目錄')
+    parser.add_argument('--host-version', help='實例實際使用的 MaiBot 版本；實例模式必填')
     parser.add_argument('--gateway-key-file', type=Path)
     parser.add_argument('--update', action='store_true')
     args = parser.parse_args()
     try:
-        target = install(args.maibot_dir, update=args.update, gateway_key_file=args.gateway_key_file)
+        target = install(args.instance_dir if args.instance_dir is not None else args.maibot_dir,
+                         instance_mode=args.instance_dir is not None, host_version=args.host_version,
+                         update=args.update, gateway_key_file=args.gateway_key_file)
     except ValueError as error:
         parser.exit(1, str(error) + '\n')
     print(f'Installed plugin: {target}')

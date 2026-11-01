@@ -122,6 +122,8 @@ git pull --ff-only
 python3 scripts/install-maibot-plugin.py --maibot-dir /你的/MaiBot --gateway-key-file "$PWD/.state/gateway.key"
 ```
 
+如果是沒有 `bot.py` 的獨立實例目錄，改用 `--instance-dir /你的/實例 --host-version 實際MaiBot版本`，詳見指南。
+
 先在 Mai Chat 輸入 `/mm status`，設定插件啟用及測試流 allowlist，再用 `/mm image gpt 白色桌上的紅蘋果` 或 `/mm chat grok 你好`。Grok 影片走可選工具與 Host 檔案服務。完整步驟與限制見 [MaiBot 插件指南](docs/MAIBOT.md)。不修改核心；未連接正式 QQ，真實 Host 傳送仍待本機驗證。
 
 ## 測試及文件
@@ -131,7 +133,7 @@ python3 -m unittest discover -s tests -v
 node tests/chatgpt.test.mjs
 ```
 
-目前 Gateway Python 80 項、Node 3 項及獨立插件／安裝 19 項程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT Plus 訂閱生圖也已由使用者回報成功，Gemini Ultra 仍待帳號端到端驗證。
+目前 Gateway Python 80 項、Node 3 項及獨立插件／安裝 21 項程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT Plus 訂閱生圖也已由使用者回報成功，Gemini Ultra 仍待帳號端到端驗證。
 
 - [Plus／Ultra 訂閱生圖](docs/SUBSCRIPTION-IMAGES.md)
 - [Google Ultra / Antigravity 修正](docs/ANTIGRAVITY.md)

@@ -12,6 +12,8 @@
 python3 scripts/install-maibot-plugin.py --maibot-dir /你的/MaiBot --gateway-key-file "$PWD/.state/gateway.key"
 ```
 
+若目錄沒有 `bot.py`，使用安裝版實例模式：`--instance-dir /你的/實例 --host-version 1.3.19`，取代 `--maibot-dir`，並將版本換成實際 MaiBot 版本。需已有 `config/data/plugins`；詳見完整文件。
+
 只會新增 `MaiBot/plugins/maibot_multimodal_gateway/`，key 只保存路徑，不複製任何憑證。更新插件加 `--update`，保留既有 `config.toml`。也可直接複製本目錄到 MaiBot 的 plugins 目錄。
 
 MaiBot Runner 與 Gateway 必須同一台 Mac、同一使用者，且 Runner 可讀取 Gateway key（0600）。容器內的 loopback 不是宿主，這版不會改綁外網或自動開 tunnel。
