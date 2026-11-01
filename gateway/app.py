@@ -89,6 +89,14 @@ class Gateway:
         self.slots = threading.BoundedSemaphore(limit)
 
     def dispatch(self, path, body):
+        if path == '/v1/images/generations' and isinstance(body.get('model'), str) and body['model'].split('/', 1)[0] in ('chatgpt', 'gemini') and '/' in body['model']:
+            from gateway.subscription_images import generate
+            if not self.slots.acquire(blocking=False):
+                raise Failure(429, 'gateway_busy')
+            try:
+                return generate(body)
+            finally:
+                self.slots.release()
         if path in ('/v1/images/generations', '/v1/images/edits', '/v1/videos/generations') and isinstance(body.get('model'), str) and body['model'].startswith('grok-oauth/'):
             from gateway.direct_media import generate
             if not self.slots.acquire(blocking=False):
@@ -230,7 +238,7 @@ def server(gateway, port=8790):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['init', 'set-key', 'serve', 'login-grok', 'login', 'models'])
+    parser.add_argument('command', choices=['init', 'set-key', 'serve', 'login-grok', 'login', 'login-images', 'models'])
     parser.add_argument('--provider', choices=['openai', 'xai', 'chatgpt', 'grok', 'gemini'])
     parser.add_argument('--port', type=int, default=8790)
     args = parser.parse_args()
@@ -238,6 +246,14 @@ def main():
         if not read_secret('gateway.key'):
             save_secret('gateway.key', secrets.token_urlsafe(32))
         print('Gateway key saved in .state/gateway.key (0600); value hidden.')
+    elif args.command == 'login-images':
+        if args.provider not in ('chatgpt', 'gemini'):
+            parser.error('--provider chatgpt|gemini required')
+        from gateway.subscription_images import login
+        try:
+            raise SystemExit(login(args.provider))
+        except Failure as error:
+            parser.exit(1, error.code + '\n')
     elif args.command in ('login', 'models'):
         from gateway.subscriptions import login, prepare, chatgpt_command, run_bounded
         if args.provider not in ('chatgpt', 'grok', 'gemini'):

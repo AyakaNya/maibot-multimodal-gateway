@@ -1,5 +1,7 @@
 # 訂閱媒體啟用狀態（2026-11-01）
 
+> 最新：使用者回報 Grok 圖片與影片成功。Plus／Ultra 已新增官方 runtime 圖片 adapter，帳號待測；最新指令與矩陣以 [訂閱生圖指南](SUBSCRIPTION-IMAGES.md) 為準。以下保留原先各輪審查／診斷紀錄。
+
 > 更新：新增獨立 `grok-oauth/` 的圖片／編輯及直接影片路徑，與下述 `grok/` CLI 路徑並存，詳見 [DSH-REVIEW.md](DSH-REVIEW.md)。
 
 
@@ -9,9 +11,10 @@ Grok 官方 Grok Build 的 `image_gen`、`image_to_video` 原生工具。Gateway
 
 | 訂閱 | 圖片生成 | 圖片編輯 | 影片 | 語音 |
 |---|---|---|---|---|
-| SuperGrok | 使用者回報 CLI 生圖成功 | 未實作 | 已呼叫 image_to_video，但工具失敗待診斷 | 未找到已驗證的 headless 音訊介面 |
+| SuperGrok | 使用者回報 CLI 生圖成功 | 未實作 | 使用者調整 ZDR 設定後回報 CLI 影片成功 | 未找到已驗證的 headless 音訊介面 |
+| ChatGPT Plus / Codex | 已接入原生 image_gen，帳號待測 | 未接入本路由 | 未接入 | 未接入 |
 | ChatGPT Plus / SIWC | 官方明確排除圖片生成工具 | 未支持此整合 | 無已驗證的訂閱介面 | 此流程不支持音訊／影片輸入及轉寫；無已驗證的 TTS 整合 |
-| Google AI Ultra / Gemini CLI | 未找到已驗證的 Ultra 額度生圖介面 | 未啟用 | 未找到已驗證的 Ultra 額度介面 | 未找到已驗證的 Ultra 額度介面 |
+| Google AI Ultra / Antigravity CLI | 已接入原生 generate_image，帳號待測 | 未接入本路由 | 未接入 | 未接入 |
 
 這是 Gateway 實作狀態，不是三家網頁／App 的功能清單。未接入項目沒有被標成「可用」。HTTP `GET /v1/capabilities`（需 Gateway key）回傳對應狀態，帳號 entitlement 在實測前仍為 not_verified。
 

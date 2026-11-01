@@ -55,7 +55,8 @@ class SubscriptionTests(unittest.TestCase):
             if provider != 'grok':
                 with self.assertRaises(app.Failure) as caught:
                     gateway.dispatch('/v1/images/generations', {'model': provider + '/image', 'prompt': 'apple'})
-                self.assertEqual(caught.exception.status, 403)
+                self.assertEqual(caught.exception.status, 400)
+                self.assertEqual(caught.exception.code, 'subscription_images_require_default_model')
         with patch.object(subs, 'generate', side_effect=app.Failure(403, 'denied')):
             with self.assertRaises(app.Failure):
                 gateway.dispatch('/v1/chat/completions', {'model': 'chatgpt/test', 'messages': MESSAGES})

@@ -1,5 +1,7 @@
 # DSH 參考專案再次核對與移植
 
+> 更新：已改用官方 Codex app-server 實作 Plus 生圖與官方 agy CLI 實作 Ultra 生圖，不移植此文的 Codex OAuth 直接 HTTP 路徑。詳見 [最新訂閱圖片指南](SUBSCRIPTION-IMAGES.md)。下文是直接 HTTP 移植的歷史審查。
+
 2026-11-01 重新讀取 HEAD，仍為 `b8023110864494acefc6f5963c2a197d85dda20c`。
 
 之前用 Sign in with ChatGPT（SIWC）限制概括所有 GPT 訂閱路徑不夠精確：SIWC 與 DSH 的 Codex 圖片是不同路徑。應分別判斷，不應因其中一條不支持而宣稱其他條也不可能。

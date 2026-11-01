@@ -9,15 +9,18 @@ import urllib.error
 import urllib.request
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--provider', choices=['grok', 'chatgpt', 'gemini'], default='grok')
 parser.add_argument('--kind', choices=['image', 'edit', 'video'], required=True)
 parser.add_argument('--backend', choices=['cli', 'oauth'], default='cli')
 parser.add_argument('--reference-image', type=Path, help='Local PNG/JPEG/WebP explicitly supplied for editing or image-to-video')
 parser.add_argument('--prompt', default='A red apple on a white table, gentle camera movement')
 args = parser.parse_args()
+if args.provider != 'grok' and (args.backend != 'cli' or args.kind != 'image' or args.reference_image):
+    parser.error('ChatGPT/Gemini currently support --backend cli --kind image only')
 root = Path(__file__).resolve().parents[1]
 key = (root / '.state/gateway.key').read_text().strip()
 route = {'image':'/v1/images/generations','edit':'/v1/images/edits','video':'/v1/videos/generations'}[args.kind]
-body = {'model': ('grok-oauth/default' if args.backend == 'oauth' else 'grok/default'), 'prompt': args.prompt}
+body = {'model': ('grok-oauth/default' if args.backend == 'oauth' else args.provider + '/default'), 'prompt': args.prompt}
 if args.kind == 'edit' and (args.backend != 'oauth' or args.reference_image is None):
     parser.error('Editing requires --backend oauth --reference-image PATH')
 if args.reference_image:
@@ -40,7 +43,9 @@ try:
         result = json.load(response)['data'][0]
 except urllib.error.HTTPError as error:
     code = json.load(error).get('error', {}).get('code', 'unknown')
-    if args.backend == 'cli' and code.startswith('media_'):
+    if args.provider != 'grok':
+        print('Diagnostic: cat .state/subscription-image-diagnostic.json (redacted fields only).')
+    elif args.backend == 'cli' and code.startswith('media_'):
         print('Diagnostic: cat .state/media-diagnostic.json (redacted fields only). Also check grok version.')
         print(f'Offline tool failure details: python3 scripts/media-diagnostic.py --kind {args.kind}')
     raise SystemExit(f'HTTP {error.code}: {code}. No API-key fallback attempted.')
@@ -54,7 +59,7 @@ folder = root / 'artifacts'
 if folder.is_symlink():
     raise SystemExit('Unsafe artifact directory.')
 folder.mkdir(mode=0o700, exist_ok=True)
-path = folder / ('grok-poc.' + ext)
+path = folder / (args.provider + '-poc.' + ext)
 fd = os.open(path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
 with os.fdopen(fd, 'wb') as output:
     output.write(data)

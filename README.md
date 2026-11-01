@@ -2,16 +2,17 @@
 
 供 macOS 本機單使用者使用的獨立 Gateway，研究及接入 ChatGPT Plus、SuperGrok、Google AI Ultra。僅監聽 `127.0.0.1:8790`，需要獨立 Gateway key；不修改 MaiBot 核心、不接正式 QQ、不依賴 DSH 宿主。
 
-**目前為原型。** 使用者已回報 macOS／SuperGrok 官方 CLI 圖片生成成功；影片已呼叫原生工具但失敗，原因待離線診斷。其他訂閱整合仍待真實帳號驗證；程式測試使用模擬上游。
+**目前為原型。** 使用者已回報 macOS／SuperGrok 官方 CLI 圖片生成成功；影片在使用者調整 ZDR 設定後也回報成功。Plus／Ultra 訂閱圖片路由已實作，仍待使用者帳號驗證；程式測試使用模擬上游。
 
 ## 功能狀態
 
 | 路由／登入方式 | 文字 | 圖片 | 影片 | 語音 |
 |---|---|---|---|---|
 | ChatGPT 官方 Sign in with ChatGPT | adapter 已實作 | 此 SIWC 路徑不支援 | 未接入 | 未接入 |
-| Grok 官方 CLI | adapter 已實作 | 原生 image_gen，使用者回報成功 | 先生圖再 image_to_video，工具失敗待診斷 | 未接入 |
+| ChatGPT Plus → 官方 Codex app-server | 沿用 SIWC 文字路由 | 原生 image_gen 已接入，帳號待測 | 未接入 | 未接入 |
+| Grok 官方 CLI | adapter 已實作 | 原生 image_gen，使用者回報成功 | 先生圖再 image_to_video，使用者回報成功 | 未接入 |
 | Grok 獨立核准 OAuth session | 已實作 | 直接生成／編輯 | 直接文生／圖生影片 | 未接入 |
-| Google AI Ultra → 官方 Antigravity CLI `agy` | adapter 已實作 | 未驗證 | 未驗證 | 未驗證 |
+| Google AI Ultra → 官方 Antigravity CLI `agy` | adapter 已實作 | 原生 generate_image 已接入，帳號待測 | 未驗證 | 未驗證 |
 | OpenAI／xAI 官方 API key（明確選用） | 已實作 | 生成已實作 | 未接入 | 未接入 |
 
 Google 個人訂閱登入已改接 `agy`，**不要再安裝舊 Gemini CLI 或嘗試舊個人 Code Assist 登入**。`--provider gemini` 為相容命名，實際執行 `agy`。詳見 [Antigravity 遷移](docs/ANTIGRAVITY.md)。
@@ -71,6 +72,25 @@ python3 scripts/media-poc.py --backend cli --kind video --prompt '森林湖泊�
 
 媒體成功後保存至 `artifacts/`。Grok 直接 OAuth 路徑另需核准 client／redirect 設定，不能直接共用 CLI token；見 [DSH 直接媒體移植](docs/DSH-REVIEW.md)。不會自動切帳號、改模型或切換 API-key 計費。實際額度與計費由服務商決定。
 
+## Plus／Ultra 訂閱生圖
+
+已新增官方 Codex 與 agy 原生圖片 adapter；不使用 API key。更新並重啟 Gateway 前，先完成圖片登入：
+
+```bash
+npm install -g @openai/codex
+python3 -m gateway.app login-images --provider chatgpt
+python3 -m gateway.app login-images --provider gemini
+```
+
+保持 Gateway 運行，另開終端：
+
+```bash
+python3 scripts/media-poc.py --provider chatgpt --kind image --prompt '白色桌上的紅蘋果'
+python3 scripts/media-poc.py --provider gemini --kind image --prompt '白色桌上的紅蘋果'
+```
+
+Codex 圖片登入與原 SIWC 文字登入分開。Gemini 使用新版 agy 的本次設定覆蓋，維持全域 strict。完整更新／登入／呼叫與限制見 [訂閱生圖指南](docs/SUBSCRIPTION-IMAGES.md)。
+
 ## 更新
 
 停止 Gateway（Ctrl+C），在專案資料夾執行：
@@ -87,7 +107,7 @@ git pull --ff-only
 
 - `GET /health`、`GET /v1/capabilities`
 - `POST /v1/chat/completions`：`model` 前綴 `chatgpt/`、`grok/`、`gemini/`；文字 `messages`，僅 `stream:false`，無 tool calls。
-- `POST /v1/images/generations`：CLI 用 `grok/default`；獨立 OAuth 用 `grok-oauth/default`。
+- `POST /v1/images/generations`：訂閱 runtime 用 `grok/default`、`chatgpt/default`、`gemini/default`；獨立 OAuth 用 `grok-oauth/default`。
 - `POST /v1/images/edits`：獨立 Grok OAuth，參考圖以 base64 data URL 明確提交。
 - `POST /v1/videos/generations`：同步 PoC，回傳 base64 MP4，非 OpenAI 非同步 Video API job 合約。
 - 音訊路由明確拒絕，沒有假裝成功的空介面。
@@ -101,8 +121,9 @@ python3 -m unittest discover -s tests -v
 node tests/chatgpt.test.mjs
 ```
 
-目前 Python 43 項與 Node 3 項程式測試通過。使用者回報 Grok CLI 圖片生成成功；影片、其他提供者登入及端到端呼叫仍待驗證。
+目前 Python 54 項與 Node 3 項程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT／Gemini 訂閱生圖仍待使用者 Mac 帳號端到端驗證。
 
+- [Plus／Ultra 訂閱生圖](docs/SUBSCRIPTION-IMAGES.md)
 - [Google Ultra / Antigravity 修正](docs/ANTIGRAVITY.md)
 - [DSH 端點、認證及宿主邊界](docs/DSH-REVIEW.md)
 - [CLI 媒體合約及限制](docs/MEDIA.md)

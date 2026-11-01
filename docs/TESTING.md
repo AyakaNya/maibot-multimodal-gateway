@@ -1,3 +1,11 @@
+# Plus／Ultra 訂閱圖片 runtime 路由
+
+Python 54/54、Node 3/3 通過。新增 11 項測試涵蓋生圖路由、單一並發與失敗不轉 API、Codex 登入類型檢查與原生圖片完成事件、圖片路徑限制、Gemini 本次設定不修改全域設定、舊 CLI 拒絕、當前 session 產物與 stdio timeout 子程序清理。
+
+原生 Codex CLI 0.163.0 在空白 profile 完成 initialize／account/read（未登入），並匯出 schema 核對圖片事件。agy 官方 1.4.12 發行檔 SHA512 校驗通過，help 確認支援本次 --settings 覆蓋。雲端沒有兩家使用者憑證，尚未實測 Plus／Ultra 生成；參見 [完整驗證範圍](SUBSCRIPTION-IMAGES.md)。使用者已另回報 Grok 圖片、影片成功。
+
+以下保留歷史測試紀錄。
+
 # 影片離線診斷與已知實測狀態
 
 Python 43/43、Node 3/3 通過。新增影片 ZDR、圖片引用、原生參數、輪詢／服務端結果分類，離線影片與起始圖片工具區分、成功 session 不誤用舊失敗，以及 CLI duration 6/10 契約測試。未呼叫服務商生成。

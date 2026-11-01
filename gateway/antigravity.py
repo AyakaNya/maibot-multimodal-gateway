@@ -18,7 +18,7 @@ def checked_settings():
         raise app.Failure(503, 'antigravity_set_toolPermission_strict_in_config')
     # Native default account authentication is the subscription path. Refuse
     # custom providers / enterprise project routing, rather than silently billing.
-    if settings.get('modelProvider') or settings.get('gcp'):
+    if settings.get('modelProvider') or settings.get('gcp') or settings.get('customModelsConfig'):
         raise app.Failure(503, 'antigravity_requires_personal_account_auth')
     for file in (base / 'config/hooks.json', base / 'config/mcp_config.json'):
         if file.exists():

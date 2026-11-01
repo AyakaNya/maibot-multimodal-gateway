@@ -17,9 +17,9 @@ def capabilities():
         'grok': {'image_generation': 'enabled_official_cli', 'video_generation': 'enabled_official_cli_image_to_video',
                  'image_edit': 'not_implemented', 'speech': 'no_verified_headless_interface'},
         'grok-oauth': {'image_generation': 'implemented_requires_gateway_oauth', 'image_edit': 'implemented_requires_gateway_oauth', 'video_generation': 'direct_text_or_image_to_video_requires_gateway_oauth', 'speech': 'not_in_dsh_plugin'},
-        'chatgpt': {'image_generation': 'unsupported_siwc_flow', 'video_generation': 'no_verified_subscription_interface',
+        'chatgpt': {'image_generation': 'implemented_official_codex_login_requires_account_test', 'video_generation': 'no_verified_subscription_interface',
                     'speech': 'unsupported_siwc_flow'},
-        'gemini': {'text_backend': 'official_antigravity_cli_pending_account_test', 'image_generation': 'no_verified_ultra_cli_interface', 'video_generation': 'no_verified_ultra_cli_interface',
+        'gemini': {'text_backend': 'official_antigravity_cli_pending_account_test', 'image_generation': 'implemented_official_agy_generate_image_requires_account_test', 'video_generation': 'no_verified_ultra_cli_interface',
                    'speech': 'no_verified_ultra_cli_interface'}}}
 
 
