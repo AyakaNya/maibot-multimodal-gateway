@@ -9,6 +9,7 @@ import time
 import tempfile
 import uuid
 from gateway import app, subscriptions
+from gateway.media_diagnostics import summarize_failure
 
 
 def capabilities():
@@ -126,7 +127,7 @@ def output_paths(value, depth=0):
 
 def collect_media(raw, exit_code, kind, sessions, workspace, session_id):
     required = 'image_to_video' if kind == 'video' else 'image_gen'
-    names, statuses, call_paths = {}, {}, {}
+    names, statuses, call_paths, call_outputs = {}, {}, {}, {}
     available = None
     end_seen = False
     malformed = 0
@@ -158,6 +159,7 @@ def collect_media(raw, exit_code, kind, sessions, workspace, session_id):
                 if event.get('status'):
                     statuses[call_id] = event['status']
                 call_paths.setdefault(call_id, []).extend(output_paths(event.get('rawOutput')) + output_paths(event.get('content')))
+                call_outputs.setdefault(call_id, []).append({'rawOutput': event.get('rawOutput'), 'content': event.get('content')})
         if event_type == 'end':
             end_seen = True
             reason = event.get('stopReason')
@@ -187,11 +189,13 @@ def collect_media(raw, exit_code, kind, sessions, workspace, session_id):
             accepted = trusted_root(path)
             if accepted and accepted[0].suffix.lower() in suffixes and accepted[0].exists():
                 candidates[accepted[0]] = accepted[1]
-    diagnostic = {'version': 1, 'kind': kind, 'phase': 'finished', 'exit_code': exit_code,
+    diagnostic = {'version': 2, 'kind': kind, 'phase': 'finished', 'exit_code': exit_code,
         'requested_tool': required, 'tool_advertised': available, 'tool_called': called,
         'tool_completed': completed, 'tool_failed': failed, 'end_seen': end_seen,
         'stop_reason': stop, 'malformed_lines': malformed, 'candidate_count': len(candidates)}
-    # Whitelisted booleans/counts only. No prompt, model text, token, URL, or path.
+    if failed:
+        diagnostic['failure'] = summarize_failure([value for cid, value in call_outputs.items() if names.get(cid) == required and statuses.get(cid) == 'failed'])
+    # Only whitelisted categories, codes and numeric HTTP statuses; never raw errors.
     app.save_secret('media-diagnostic.json', json.dumps(diagnostic, indent=2))
     if len(candidates) == 1:
         path, root = next(iter(candidates.items()))

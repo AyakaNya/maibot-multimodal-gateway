@@ -86,3 +86,20 @@ grok version
 ```
 
 該診斷檔僅包含固定欄位的階段、工具名稱、布林值、計數、程序退出碼及已知 stop reason，不記錄提示詞、模型文字、token、簽名 URL 或檔案路徑，檔案權限 0600。這次修正通過本地模擬與真實子程序測試；尚無使用者 Mac 的事件紀錄，實際失敗原因仍待本機新診斷確認。
+
+### 工具有呼叫，但 tool_failed
+
+若摘要為 `tool_advertised=true`、`tool_called=true`、`tool_failed=true`，可確認 CLI 工具本身失敗，但不能從這些布林值判斷原因。`exit_code=0` 只代表 CLI 回合正常結束，不代表 image_gen 成功。
+
+新版摘要 version=2 增加 `failure.category`、`http_statuses` 與固定白名單的 `error_codes`，從工具失敗輸出提取，不保存原始錯誤文字。401／403／429、非 xAI 登入、缺少媒體憑證、本機權限、參數和網路錯誤分別分類；未知內容明確為 unknown_tool_error，不猜測套餐問題。
+
+**優先診斷既有失敗，不重新生圖：**
+
+```bash
+git pull --ff-only
+python3 scripts/media-diagnostic.py
+```
+
+此命令不連網、不呼叫 grok、不消耗生成額度。它只在本專案 `.state/grok/sessions` 中找近期有界的 `updates.jsonl`，讀取圖片工具失敗事件並輸出同樣去敏的分類；不讀 auth/token 檔或輸出原始對話。如果 `found=false`，可能是當前 CLI 沒保存相容格式的更新紀錄，不能據此推斷權限。
+
+若版本 1 診斷來自舊流程，離線命令可在有相容紀錄時補出原因。需要新請求時再重啟 Gateway，從 `.state/media-diagnostic.json` 讀 version=2。尚無使用者實際錯誤內容，因此本輪是補齊診斷，並非宣稱服務商失敗已解決。
