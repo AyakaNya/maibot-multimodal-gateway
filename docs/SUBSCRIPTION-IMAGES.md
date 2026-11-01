@@ -142,3 +142,36 @@ python3 scripts/antigravity-diagnostic.py
 本輪未找到已驗證的「僅本次停用全部共用 hooks／plugins」CLI 選項，因此沒有把 settings.json 的 hooks:{} 當成停用開關（官方 schema 明確表示該欄位不會被 CLI 載入），也沒有搬移／覆寫使用者共用設定。真正的執行項仍待實際本機摘要確認，並非宣稱這次生成失敗已解決。
 
 Python 71/71 測試通過，涵蓋空／停用／啟用項、畸形或過大檔案、symlink 拒絕、雜項檔案、不輸出私人欄位、擋下時不執行 CLI、允許時使用原生圖片 session 且共用設定位元組不變。離線腳本亦已在雲端執行確認輸出合約；使用者的真實共用設定仍待本機結果。
+
+
+## MCP 檔案 unreadable_or_invalid：JSONC 相容與精確分類
+
+使用者最新離線摘要已確認只有 global_mcp 阻擋，hooks／plugins 均 inactive。舊版把讀取錯誤、編碼與 JSON 語法失敗合併為 unreadable_or_invalid，無法判斷是否真的有擴充啟用。
+
+重新核對 [官方 CLI CHANGELOG](https://github.com/google-antigravity/antigravity-cli/blob/main/CHANGELOG.md)：1.1.24 支援 MCP 檔案的 //、/* */ 註解與尾端逗號；1.3.1 支援 MCP／hooks／plugin manifest 的 UTF-8 BOM。Gateway 原本使用嚴格 JSON，可能誤擋合法設定。新版只在記憶體中正規化 MCP JSONC，保留字串與 URL、命令中的 // 或 /* 字面內容，不改寫檔案。hooks 只新增有官方證據的 BOM 支援，未將 MCP 的 JSONC 規則直接套用至 hooks。
+
+解析後仍檢查實際 MCP server 與 disabled:true。重複鍵、NaN／Infinity、單引號／未加引號 key 等一般 JSON5 語法、未閉合註解與缺值仍拒絕，不會當成空 MCP。檔案最多 1 MiB、巢狀最多 128 層，不跟隨檔案 symlink。
+
+先更新後執行同一支離線指令，不需要再次生成：
+
+```bash
+git pull --ff-only
+python3 scripts/antigravity-diagnostic.py
+```
+
+新 global_mcp 摘要視情況提供 size_bytes、utf8_bom、format=json/jsonc、數字 read_errno、json_error_line／json_error_column，仍不提供原文、parser 訊息或檔案內容。
+
+| state | 解讀 |
+|---|---|
+| inactive 且 review_required:false | 設定可解析，沒有啟用中的 server。重新啟動 Gateway 後才執行圖片 PoC。 |
+| read_permission_denied | OS 回 EACCES／EPERM；不是 JSON 語法錯誤。 |
+| read_error | 其他 OS 讀取錯誤，以數字 read_errno 協助定位。 |
+| empty_file | 空檔案或只有空白，不直接當成有效空 MCP 設定。 |
+| invalid_utf8 | 編碼不是可解碼的 UTF-8。 |
+| invalid_json | JSON／JSONC 語法或重複鍵問題；能定位時會附行、列。 |
+| invalid_root_type | JSON 最外層不是 object。 |
+| json_too_deep／invalid_or_oversized | 超過本機解析限制或不是一般檔案。 |
+
+如果仍 review_required:true，先分享新版 global_mcp 區段，無須分享檔案原文。沒有依據時不清空使用者設定，也不改權限或讀取登入憑證。本輪已修正可驗證的官方格式相容差異，仍未取得使用者實際檔案格式與讀取錯誤，不能宣稱真正阻擋原因已確認。
+
+Python 77/77 通過，新增 JSONC／BOM、字串與 URL 原樣保留、啟用 server 不被忽略、空檔／編碼／語法／權限／深度分類、重複鍵／錯誤逗號／非 JSON 常數拒絕，既有生成流程的測試亦使用帶註解與尾端逗號的停用 MCP 設定，確認檔案位元組不變。未呼叫提供者生成。

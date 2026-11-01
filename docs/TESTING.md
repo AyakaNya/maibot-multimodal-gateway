@@ -1,3 +1,9 @@
+# MCP JSONC／BOM 相容與讀取錯誤定位
+
+Python 77/77 通過。官方 CLI 1.1.24 支援 MCP JSONC 註解／尾端逗號，1.3.1 支援 MCP 與 hooks BOM；補上相容解析，且不改寫全域設定。字串中的 URL／comment 字面內容不受影響，解析後仍檢查啟用 MCP。重複鍵、一般 JSON5 與錯誤結構仍阻擋。
+
+新增讀取權限 errno 與格式錯誤行列的去敏分類、128 層深度上限；不再將所有情況合併為 unreadable_or_invalid。使用者實際問題仍待新版離線摘要，沒有把未知設定清空或略過。本輪未生成。以下保留歷史記錄。
+
 # Antigravity 共用擴充離線檢查
 
 Python 71/71 通過。先前 any(value.values()) 與 any(plugins.iterdir()) 會誤擋空 hooks envelope、官方 enabled:false hooks／disabled:true MCP，以及 .DS_Store 等惰性檔案。新增 schema-aware 計數與離線腳本，不輸出設定值，也不執行 CLI 或生成。

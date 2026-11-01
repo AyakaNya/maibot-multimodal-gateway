@@ -1,5 +1,6 @@
 """Offline, redacted checks for native agy shared extension configuration."""
 import json
+import errno
 import os
 from pathlib import Path
 import stat
@@ -15,30 +16,140 @@ class ExtensionReviewRequired(app.Failure):
         self.checks = checks
 
 
-def read_config(path):
-    if path.is_symlink():
-        return None, 'symlink'
+def normalize_jsonc(text):
+    """Remove only JSON comments/trailing commas, preserving string contents."""
+    chars = list(text)
+    index, quoted, escaped = 0, False, False
+    while index < len(text):
+        char = text[index]
+        if quoted:
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == '"':
+                quoted = False
+        elif char == '"':
+            quoted = True
+        elif text.startswith('//', index):
+            end = index + 2
+            while end < len(text) and text[end] not in '\r\n':
+                end += 1
+            chars[index:end] = ' ' * (end-index)
+            index = end
+            continue
+        elif text.startswith('/*', index):
+            end = text.find('*/', index + 2)
+            if end < 0:
+                raise ValueError('unterminated JSON comment')
+            end += 2
+            for position in range(index, end):
+                if chars[position] not in '\r\n':
+                    chars[position] = ' '
+            index = end
+            continue
+        index += 1
+    quoted, escaped, previous = False, False, None
+    index = 0
+    while index < len(chars):
+        char = chars[index]
+        if quoted:
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == '"':
+                quoted = False
+        elif char == '"':
+            quoted = True
+        elif char == ',' and previous not in (None, '{', '[', ':', ','):
+            end = index + 1
+            while end < len(chars) and chars[end] in ' \t\r\n':
+                end += 1
+            if end < len(chars) and chars[end] in '}]':
+                chars[index] = ' '
+        if char not in ' \t\r\n':
+            previous = char
+        index += 1
+    return ''.join(chars)
+
+
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('duplicate JSON key')
+        result[key] = value
+    return result
+
+
+def invalid_constant(_value):
+    raise ValueError('non-JSON numeric constant')
+
+
+def check_json_depth(text):
+    depth, quoted, escaped = 0, False, False
+    for char in text:
+        if quoted:
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == '"':
+                quoted = False
+        elif char == '"':
+            quoted = True
+        elif char in '{[':
+            depth += 1
+            if depth > 128:
+                raise RecursionError('configuration nesting limit')
+        elif char in '}]':
+            depth -= 1
+
+
+def read_config(path, *, jsonc=False):
+    details = {}
     try:
+        if path.is_symlink():
+            return None, 'symlink', details
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-        with os.fdopen(fd, encoding='utf-8') as source:
+        with os.fdopen(fd, 'rb') as source:
             info = os.fstat(source.fileno())
+            details['size_bytes'] = info.st_size
             if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_BYTES:
-                return None, 'invalid_or_oversized'
+                return None, 'invalid_or_oversized', details
             raw = source.read(MAX_BYTES + 1)
         if len(raw) > MAX_BYTES:
-            return None, 'invalid_or_oversized'
-        value = json.loads(raw)
-        return (value, None) if isinstance(value, dict) else (None, 'invalid')
+            return None, 'invalid_or_oversized', details
+        details['utf8_bom'] = raw.startswith(b'\xef\xbb\xbf')
+        text = raw.decode('utf-8-sig')
+        if not text.strip():
+            return None, 'empty_file', details
+        normalized = normalize_jsonc(text) if jsonc else text
+        details['format'] = 'jsonc' if normalized != text else 'json'
+        check_json_depth(normalized)
+        value = json.loads(normalized, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+        return (value, None, details) if isinstance(value, dict) else (None, 'invalid_root_type', details)
     except FileNotFoundError:
-        return {}, None
-    except (OSError, ValueError, RecursionError):
-        return None, 'unreadable_or_invalid'
+        return {}, None, details
+    except UnicodeDecodeError:
+        return None, 'invalid_utf8', details
+    except json.JSONDecodeError as error:
+        details.update(json_error_line=error.lineno, json_error_column=error.colno)
+        return None, 'invalid_json', details
+    except RecursionError:
+        return None, 'json_too_deep', details
+    except ValueError:
+        return None, 'invalid_json', details
+    except OSError as error:
+        details['read_errno'] = error.errno
+        return None, 'read_permission_denied' if error.errno in (errno.EACCES, errno.EPERM) else 'read_error', details
 
 
 def hooks_check(path):
-    value, error = read_config(path)
+    value, error, details = read_config(path)
     result = {'state': error or 'inactive', 'enabled_handler_count': 0,
-              'disabled_group_count': 0, 'unknown_entry_count': 0}
+              'disabled_group_count': 0, 'unknown_entry_count': 0, **details}
     if error:
         return {**result, 'review_required': True}
     def handlers(group, allow_disable=True):
@@ -69,9 +180,9 @@ def hooks_check(path):
 
 
 def mcp_check(path):
-    value, error = read_config(path)
+    value, error, details = read_config(path, jsonc=True)
     result = {'state': error or 'inactive', 'enabled_server_count': 0,
-              'disabled_server_count': 0, 'unknown_entry_count': 0}
+              'disabled_server_count': 0, 'unknown_entry_count': 0, **details}
     if error:
         return {**result, 'review_required': True}
     result['unknown_entry_count'] = len(set(value) - {'$schema', 'mcpServers'})
