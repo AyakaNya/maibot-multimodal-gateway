@@ -1,5 +1,6 @@
 """Media via official Grok Build tools; never extract/forward CLI credentials."""
 import base64
+import errno
 import hashlib
 import json
 import os
@@ -29,17 +30,52 @@ def snapshot(directory):
     return {p for p in directory.rglob('*') if p.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp', '.mp4')}
 
 
-def read_artifact(path, root, kind):
-    root = root.resolve()
-    if not path.resolve().is_relative_to(root) or path.is_symlink():
+def artifact_location(path, root):
+    """Normalize trusted-root ancestors, never links inside the artifact tree."""
+    path, root = Path(path), Path(root)
+    if '..' in path.parts or '..' in root.parts:
         raise app.Failure(502, 'unsafe_media_path')
-    current = path
-    while current != root:
-        if current.is_symlink():
-            raise app.Failure(502, 'unsafe_media_path')
-        current = current.parent
+    lexical_root = root.absolute()
+    if lexical_root.is_symlink():
+        raise app.Failure(502, 'unsafe_media_path')
+    canonical_root = lexical_root.resolve()
+    path = path.absolute()
+    # macOS native runtimes may return /private/var/... for Python's /var/...
+    # workspace. Both spellings refer to the same trusted artifact boundary.
+    for boundary in (lexical_root, canonical_root):
+        if path.is_relative_to(boundary) and path != boundary:
+            return canonical_root, path.relative_to(boundary)
+    # The runtime may also return the alias spelling after we have already
+    # canonicalized the root. Match only an ancestor that resolves to the exact
+    # trusted boundary; descendant links still go through no-follow openat.
+    for boundary in path.parents:
+        if not boundary.is_symlink() and boundary.resolve() == canonical_root:
+            return canonical_root, path.relative_to(boundary)
+    raise app.Failure(502, 'unsafe_media_path')
+
+
+def read_artifact(path, root, kind):
+    root, relative = artifact_location(path, root)
+    # Open each descendant relative to a pinned directory descriptor. This
+    # rejects artifact symlinks (including directory links), even if swapped
+    # after validation, without inspecting system aliases above our root.
+    directory = None
+    try:
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        directory = os.open(root, flags)
+        for part in relative.parts[:-1]:
+            child = os.open(part, flags, dir_fd=directory)
+            os.close(directory)
+            directory = child
+        fd = os.open(relative.parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+    except OSError as error:
+        code = ('unsafe_media_path' if error.errno in (errno.ELOOP, errno.ENOTDIR) else
+                'media_artifact_not_found' if error.errno == errno.ENOENT else 'media_artifact_unreadable')
+        raise app.Failure(502, code) from None
+    finally:
+        if directory is not None:
+            os.close(directory)
     limit = 16 * 1024 * 1024 if kind == 'image' else 32 * 1024 * 1024
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     with os.fdopen(fd, 'rb') as source:
         info = os.fstat(source.fileno())
         if not stat.S_ISREG(info.st_mode) or info.st_size > limit:

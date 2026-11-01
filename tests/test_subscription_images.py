@@ -141,6 +141,28 @@ class SubscriptionImageTests(unittest.TestCase):
         for item in ({'savedPath':str(other)},{'result':'https://private.test/image.png'},{'text':str(own)}):
             with self.assertRaises(app.Failure):
                 codex_images.image_result(item,app.STATE,THREAD,self.work)
+    def test_codex_inline_and_saved_images_with_macos_ancestor_alias(self):
+        real=self.root/'private-var';real.mkdir()
+        alias=self.root/'var';alias.symlink_to(real,target_is_directory=True)
+        workspace=alias/'work';workspace.mkdir()
+        item={'result':base64.b64encode(PNG).decode()}
+        result=codex_images.image_result(item,app.STATE,THREAD,workspace)
+        self.assertEqual(base64.b64decode(result['b64_json']),PNG)
+        for path in (workspace/'generated.png',(workspace/'generated.png').resolve()):
+            result=codex_images.image_result({'savedPath':str(path)},app.STATE,THREAD,workspace)
+            self.assertEqual(base64.b64decode(result['b64_json']),PNG)
+    def test_codex_diagnostic_distinguishes_completed_tool_from_collected_artifact(self):
+        with patch.object(subscriptions,'executable',return_value='/bin/codex'), patch.object(codex_images,'image_result',side_effect=app.Failure(502,'unsafe_media_path')), self.assertRaises(app.Failure):
+            codex_images.generate('private prompt',{'CODEX_HOME':str(self.root)},rpc_factory=FakeRpc)
+        summary=json.loads(app.read_secret('subscription-image-diagnostic.json'))
+        self.assertTrue(summary['tool_completed'])
+        self.assertFalse(summary['artifact_collected'])
+        self.assertEqual(summary['artifact_error'],'unsafe_media_path')
+        for secret in ('private prompt',str(self.root)):
+            self.assertNotIn(secret,json.dumps(summary))
+        with patch.object(subscriptions,'executable',return_value='/bin/codex'):
+            codex_images.generate('apple',{'CODEX_HOME':str(self.root)},rpc_factory=FakeRpc)
+        self.assertTrue(json.loads(app.read_secret('subscription-image-diagnostic.json'))['artifact_collected'])
     def test_gemini_uses_native_tool_and_current_session(self):
         self.artifact()
         result=images.collect_gemini(self.gemini_events(),0,self.work)

@@ -1,3 +1,11 @@
+# macOS 可信目錄別名與圖片取回
+
+Python 60/60 通過。先以真實本機目錄 symlink 重現 unsafe_media_path，再驗證可信目錄的 ancestor alias／canonical 路徑組合、Codex inline 與 savedPath、artifact_collected 診斷。逐層 dir_fd／O_NOFOLLOW 檢查仍拒絕產物 symlink、越界和 ..；目錄換成 symlink 的競態測試確認讀取 pinned directory，不跟隨外部目標。
+
+使用者的 Codex 原生工具已 completed，但舊 Gateway 尚未成功取圖。本次修正待 Mac 驗證，未使用訂閱重新生成。Node 程式未變更，前次 3/3 結果保留。
+
+以下保留歷史記錄。
+
 # Plus／Ultra 訂閱圖片 runtime 路由
 
 Python 54/54、Node 3/3 通過。新增 11 項測試涵蓋生圖路由、單一並發與失敗不轉 API、Codex 登入類型檢查與原生圖片完成事件、圖片路徑限制、Gemini 本次設定不修改全域設定、舊 CLI 拒絕、當前 session 產物與 stdio timeout 子程序清理。

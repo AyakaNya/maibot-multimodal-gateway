@@ -4,7 +4,7 @@
 
 | Gateway model | 執行方式 | 登入 | 實測狀態 |
 |---|---|---|---|
-| `chatgpt/default` | 官方 Codex app-server 原生 `image_gen.imagegen` | 本專案獨立 `codex login`，ChatGPT Plus 帳號 | 協定與模擬生成通過，帳號生成待驗證 |
+| `chatgpt/default` | 官方 Codex app-server 原生 `image_gen.imagegen` | 本專案獨立 `codex login`，ChatGPT Plus 帳號 | 使用者回報工具完成；取圖相容修正待 Mac 驗證 |
 | `gemini/default` | 官方 Antigravity CLI 原生 `generate_image` | 官方 agy 個人 Google 帳號／Ultra | 參數與模擬生成通過，帳號生成待驗證 |
 | `grok/default` | 官方 Grok CLI 原生媒體工具 | 官方 Grok 登入 | 使用者已回報圖片與影片成功 |
 
@@ -78,6 +78,30 @@ Antigravity 使用隨機名稱的 workspace 專用主代理，只提供 `generat
 
 ## 驗證範圍
 
-Python 54/54、Node 3/3 程式測試通過，涵蓋 native 事件、帳號類型 guard、產物範圍、敏感錯誤去敏、session 設定不持久化、舊 agy 拒絕、並發釋放與真實 stdio timeout cleanup。
+Python 60/60、Node 3/3 程式測試通過，涵蓋 native 事件、帳號類型 guard、產物範圍、敏感錯誤去敏、session 設定不持久化、舊 agy 拒絕、並發釋放與真實 stdio timeout cleanup。
 
 額外使用 Codex CLI 0.163.0，透過空白獨立 profile 完成 initialize／account/read，確認未登入；匯出 native schema 核對 imageGeneration／result／savedPath。官方 agy 1.4.12 Linux 發行檔經 SHA512 校驗，確認 --settings/--agent/help 參數；未登入下的 agents 列表未提供可驗證的 agent 資訊。因此這不是 macOS、keyring 或兩家帳號生成的實測證明，首次生圖可能需要依去敏診斷調整 CLI 差異或確認帳號功能開放。
+
+
+## macOS 工具完成後的 unsafe_media_path 修正
+
+使用者回報 Codex 原生圖片工具 completed，但 Gateway 回 unsafe_media_path。已在本地重現：可信暫存目錄的祖先是 symlink（如 macOS /var → /private/var），舊程式只將 root resolve，卻沿原始 path 向上檢查，誤將系統目錄別名當成產物 symlink。這是 Gateway 可重現的路徑相容錯誤，不代表圖片授權失敗；仍需 Mac 更新後確認實際取圖。
+
+新版將 Codex cwd 正規化，接受同一可信根目錄的 alias／canonical 表示；開啟產物時以目錄 fd 逐層 no-follow，仍拒絕產物內的檔案或目錄 symlink、越界和 ..。不會放行任意 savedPath 或 assistant 文字中的路徑。
+
+去敏診斷新增 artifact_collected；工具完成但收集失敗時為 false，另附固定 artifact_error。tool_completed:true 本身不代表 Gateway 已回傳有效圖片。
+
+更新後停止並重啟 Gateway，再執行一次 ChatGPT 圖片 PoC，無需重新登入：
+
+```bash
+git pull --ff-only
+python3 -m gateway.app serve
+```
+
+另開終端：
+
+```bash
+python3 scripts/media-poc.py --provider chatgpt --kind image --prompt '白色桌上的紅蘋果'
+```
+
+60 項 Python 測試通過，包括兩種根目錄／檔案路徑表示的互通、Codex inline／savedPath、目錄 fd 防止替換連結逸出、內部 symlink／越界拒絕與取圖診斷。本輪未使用真實訂閱重新生成。

@@ -10,7 +10,7 @@ import tempfile
 import time
 import uuid
 from gateway import app, subscriptions
-from gateway.media import read_artifact
+from gateway.media import artifact_location, read_artifact
 from gateway.media_diagnostics import summarize_failure
 from gateway.subscription_images import diagnostic
 
@@ -113,16 +113,20 @@ def image_result(item, home, thread_id, workspace):
     if isinstance(saved, str):
         path = Path(saved)
         for root in (workspace, home / 'generated_images' / thread_id):
-            if root.is_symlink() or root.parent.is_symlink():
-                raise app.Failure(502, 'unsafe_media_path')
-            if path.is_absolute() and path.is_relative_to(root):
-                return read_artifact(path, root, 'image')
+            if not path.is_absolute():
+                continue
+            try:
+                artifact_location(path, root)
+            except app.Failure:
+                continue
+            return read_artifact(path, root, 'image')
     raise app.Failure(502, 'codex_image_artifact_missing')
 
 
 def generate(prompt, env, rpc_factory=Rpc):
     home = Path(env['CODEX_HOME'])
     with tempfile.TemporaryDirectory(prefix='maibot-codex-image-') as work:
+        work = str(Path(work).resolve())
         command = [subscriptions.executable('codex'), 'app-server', '--listen', 'stdio://']
         try:
             rpc = rpc_factory(command, env, work)
@@ -167,7 +171,13 @@ def generate(prompt, env, rpc_factory=Rpc):
                         diagnostic('chatgpt', **fields)
                         if not succeeded:
                             raise app.Failure(502, 'codex_image_tool_failed')
-                        return image_result(item, home, thread_id, Path(work))
+                        try:
+                            result = image_result(item, home, thread_id, Path(work))
+                        except app.Failure as error:
+                            diagnostic('chatgpt', **fields, artifact_collected=False, artifact_error=error.code)
+                            raise
+                        diagnostic('chatgpt', **fields, artifact_collected=True)
+                        return result
                 if event.get('method') == 'turn/completed':
                     diagnostic('chatgpt', phase='finished', requested_tool='image_gen',
                                tool_called=called, tool_completed=False,

@@ -9,7 +9,7 @@
 | 路由／登入方式 | 文字 | 圖片 | 影片 | 語音 |
 |---|---|---|---|---|
 | ChatGPT 官方 Sign in with ChatGPT | adapter 已實作 | 此 SIWC 路徑不支援 | 未接入 | 未接入 |
-| ChatGPT Plus → 官方 Codex app-server | 沿用 SIWC 文字路由 | 原生 image_gen 已接入，帳號待測 | 未接入 | 未接入 |
+| ChatGPT Plus → 官方 Codex app-server | 沿用 SIWC 文字路由 | 原生 image_gen 工具完成；取圖相容修正待 Mac 驗證 | 未接入 | 未接入 |
 | Grok 官方 CLI | adapter 已實作 | 原生 image_gen，使用者回報成功 | 先生圖再 image_to_video，使用者回報成功 | 未接入 |
 | Grok 獨立核准 OAuth session | 已實作 | 直接生成／編輯 | 直接文生／圖生影片 | 未接入 |
 | Google AI Ultra → 官方 Antigravity CLI `agy` | adapter 已實作 | 原生 generate_image 已接入，帳號待測 | 未驗證 | 未驗證 |
@@ -121,7 +121,7 @@ python3 -m unittest discover -s tests -v
 node tests/chatgpt.test.mjs
 ```
 
-目前 Python 54 項與 Node 3 項程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT／Gemini 訂閱生圖仍待使用者 Mac 帳號端到端驗證。
+目前 Python 60 項與 Node 3 項程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT／Gemini 訂閱生圖仍待使用者 Mac 帳號端到端驗證。
 
 - [Plus／Ultra 訂閱生圖](docs/SUBSCRIPTION-IMAGES.md)
 - [Google Ultra / Antigravity 修正](docs/ANTIGRAVITY.md)
