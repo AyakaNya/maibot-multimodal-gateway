@@ -1,4 +1,5 @@
 import base64
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -21,10 +22,16 @@ class MediaTests(unittest.TestCase):
             self.assertNotIn('XAI_API_KEY', env)
             self.assertIn('MCPTool', command)
             self.assertNotIn('run_terminal_cmd', command[command.index('--tools')+1])
-            folder = app.STATE / 'grok/sessions/fixture' / ('images' if kind == 'image' else 'videos')
+            session = command[command.index('--session-id')+1]
+            folder = app.STATE / 'grok/sessions/encoded-cwd' / session / ('images' if kind == 'image' else 'videos')
             folder.mkdir(parents=True)
             (folder / ('1.png' if kind == 'image' else '1.mp4')).write_bytes(PNG if kind == 'image' else MP4)
-            return '{"text":"Generated"}'
+            tool = 'image_gen' if kind == 'image' else 'image_to_video'
+            path = folder / ('1.png' if kind == 'image' else '1.mp4')
+            return 0, '\n'.join(json.dumps(event) for event in [
+                {'type':'tool_call','toolCallId':'1','toolName':tool},
+                {'type':'tool_call_update','toolCallId':'1','status':'completed','rawOutput':{'path':str(path)}},
+                {'type':'end','stopReason':'end_turn'}])
         return run
     def test_image_and_video_output(self):
         for kind in ('image', 'video'):
@@ -33,10 +40,10 @@ class MediaTests(unittest.TestCase):
                 self.assertEqual(base64.b64decode(result['data'][0]['b64_json']), PNG if kind == 'image' else MP4)
                 self.assertEqual(result['data'][0]['media_type'], 'image/png' if kind == 'image' else 'video/mp4')
     def test_no_model_text_as_artifact(self):
-        with patch('gateway.subscriptions.executable', return_value='/bin/grok'), patch('gateway.subscriptions.run_bounded', return_value='{"text":"Saved to /etc/passwd"}'):
+        with patch('gateway.subscriptions.executable', return_value='/bin/grok'), patch('gateway.subscriptions.run_bounded', return_value=(0, '{"text":"Saved to /etc/passwd"}')):
             with self.assertRaises(app.Failure) as caught:
                 media.generate('image', {'model': 'grok/default', 'prompt': 'apple'})
-            self.assertEqual(caught.exception.code, 'media_artifact_missing_or_ambiguous_check_cli_entitlement')
+            self.assertEqual(caught.exception.code, 'media_cli_stream_format_unsupported')
     def test_symlink_and_invalid_file_rejected(self):
         folder = Path(self.temp.name) / 'media'
         folder.mkdir()

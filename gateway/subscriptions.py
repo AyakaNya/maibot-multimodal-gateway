@@ -1,5 +1,6 @@
 """Official local runtimes; credentials remain owned by their SDK/CLI."""
 import json
+from contextlib import nullcontext
 import os
 from pathlib import Path
 import re
@@ -67,9 +68,9 @@ def login(provider):
         return subprocess.call(command, env=env, cwd=work)
 
 
-def run_bounded(command, env, payload=None, timeout=150, prompt_text=None):
+def run_bounded(command, env, payload=None, timeout=150, prompt_text=None, workdir=None, capture_exit=False):
     # Private files cap output without buffering an unbounded CLI stdout in RAM.
-    with tempfile.TemporaryDirectory(prefix='maibot-text-') as work, tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, tempfile.TemporaryFile() as source:
+    with (tempfile.TemporaryDirectory(prefix='maibot-text-') if workdir is None else nullcontext(workdir)) as work, tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, tempfile.TemporaryFile() as source:
         if prompt_text is not None:
             prompt_file = Path(work) / 'prompt.txt'
             prompt_file.write_text(prompt_text)
@@ -91,13 +92,14 @@ def run_bounded(command, env, payload=None, timeout=150, prompt_text=None):
                 if os.fstat(out.fileno()).st_size + os.fstat(err.fileno()).st_size > 2 * 1024 * 1024:
                     raise app.Failure(502, 'subscription_output_limit')
                 time.sleep(0.05)
-            if proc.returncode:
+            if proc.returncode and not capture_exit:
                 # No raw stderr: it can contain tokens, URLs or private prompts.
                 raise app.Failure(502, 'subscription_runtime_failed_check_local_login_and_model')
             if os.fstat(out.fileno()).st_size > 2 * 1024 * 1024:
                 raise app.Failure(502, 'subscription_output_limit')
             out.seek(0)
-            return out.read().decode('utf-8')
+            output = out.read().decode('utf-8')
+            return (proc.returncode, output) if capture_exit else output
         finally:
             if proc.poll() is None:
                 os.killpg(proc.pid, signal.SIGKILL)

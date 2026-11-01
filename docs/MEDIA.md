@@ -60,3 +60,29 @@ CLI OAuth 不代表免費或包含無限生成額度；使用量、可能的帳�
 產物只接受官方專屬 session 目錄中新出現的一個檔案，不信任模型回覆的任意路徑；拒絕 symlink、超大檔與不符媒體標頭的檔案。多檔或找不到檔案時報錯，不偽造成功。
 
 Python 16/16 測試通過，涵蓋模擬圖／影片產物、權限拒絕、路徑／格式檢查、並發與 timeout；先前 ChatGPT adapter 3/3 測試仍保留。本輪沒有真實 Mac、服務商帳號登入或真實圖片／影片產物，因此不能宣稱已完成真實端到端驗證。三家語音和 ChatGPT/Gemini 訂閱媒體目前仍無法完成啟用。
+
+## 修正：圖片回傳 missing_or_ambiguous
+
+舊版 `media_artifact_missing_or_ambiguous_check_cli_entitlement` 只代表檔案數量不是一，不能作為帳號無權限的結論。舊版忽略 CLI 工具輸出，並在收集圖片之前刪除 CLI 的暫存工作目錄。
+
+新版改讀官方 `streaming-json` 的 tool_call/tool_call_update，追蹤實際原生工具是否完成；保留當次工作目錄直到讀取媒體完成，並只接受本次 session UUID 或私人工作目錄內的產物。工具路徑／完成狀態分批到達也能處理。不接受模型自然語言宣稱的任意檔案路徑，不擴大到掃描整台 Mac。
+
+若 CLI 因達到 turn 上限以非零退出，但原生工具已回報完成且唯一媒體檔案有效，仍可回傳已成功生成的媒體；不自動重新生成或重試服務商請求。
+
+更新：停止 Gateway（Ctrl+C），`git pull --ff-only`，重新 `python3 -m gateway.app serve`，再執行圖片 PoC。仍失敗時，請檢查新版錯誤碼：
+
+- `media_cli_tool_not_available`：CLI 可用工具清單未包含所需媒體工具。
+- `media_cli_tool_not_called`：模型沒有呼叫所需工具，不能據此判定訂閱權限。
+- `media_cli_tool_failed`／`media_cli_tool_not_completed`：工具失敗或沒有完成。
+- `media_cli_output_file_not_found`：工具回報完成，但允許的目錄沒有可讀產物。
+- `media_multiple_artifacts`：出現多個候選產物，不任意挑一張。
+- `media_cli_stream_format_unsupported`：回傳格式不符合目前官方 CLI streaming-json。
+
+可分享以下診斷輸出及 `grok version`；不要分享其他憑證檔：
+
+```bash
+cat .state/media-diagnostic.json
+grok version
+```
+
+該診斷檔僅包含固定欄位的階段、工具名稱、布林值、計數、程序退出碼及已知 stop reason，不記錄提示詞、模型文字、token、簽名 URL 或檔案路徑，檔案權限 0600。這次修正通過本地模擬與真實子程序測試；尚無使用者 Mac 的事件紀錄，實際失敗原因仍待本機新診斷確認。

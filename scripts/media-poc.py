@@ -40,6 +40,8 @@ try:
         result = json.load(response)['data'][0]
 except urllib.error.HTTPError as error:
     code = json.load(error).get('error', {}).get('code', 'unknown')
+    if args.backend == 'cli' and code.startswith('media_'):
+        print('Diagnostic: cat .state/media-diagnostic.json (redacted fields only). Also check grok version.')
     raise SystemExit(f'HTTP {error.code}: {code}. No API-key fallback attempted.')
 except urllib.error.URLError:
     raise SystemExit('Start the gateway on port 8790 first.')

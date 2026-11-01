@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import stat
 import time
+import tempfile
 import uuid
 from gateway import app, subscriptions
 
@@ -89,20 +90,122 @@ def generate(kind, body):
     with (app.STATE / 'grok' / 'config.toml').open('a') as config:
         config.write('\n[features]\nimage_gen = true\nvideo_gen = true\n\n[tools.media_gen]\nmax_parallel_image_gen_calls = 1\nmax_parallel_video_gen_calls = 1\n')
     sessions = app.STATE / 'grok' / 'sessions'
-    before = snapshot(sessions)
+    session_id = str(uuid.uuid4())
     command = [subscriptions.executable('grok'), '--prompt-file', '__GATEWAY_PROMPT_FILE__',
-               '--session-id', str(uuid.uuid4()), '--output-format', 'json', '--tools', tools,
+               '--session-id', session_id, '--output-format', 'streaming-json', '--tools', tools,
                '--always-approve', '--no-plan', '--no-subagents', '--no-memory', '--disable-web-search',
                '--max-turns', '2' if kind == 'image' else '3']
     for denied in ('Bash', 'Edit', 'Write', 'Read', 'Grep', 'WebFetch', 'MCPTool'):
         command.extend(['--deny', denied])
-    # Official CLI enforces account/tier/remote policy and manages polling. No
-    # host token extraction, HTTP permission bypass, or API-key fallback.
-    subscriptions.run_bounded(command, env, timeout=600, prompt_text=instruction + json.dumps(prompt))
-    suffixes = ('.mp4',) if kind == 'video' else ('.jpg', '.jpeg', '.png', '.webp')
-    created = [path for path in snapshot(sessions) - before if path.suffix.lower() in suffixes]
-    if len(created) != 1:
-        raise app.Failure(502, 'media_artifact_missing_or_ambiguous_check_cli_entitlement')
-    result = read_artifact(created[0], sessions, kind)
+    app.save_secret('media-diagnostic.json', json.dumps({'version': 1, 'kind': kind, 'phase': 'running'}))
+    with tempfile.TemporaryDirectory(prefix='maibot-media-') as work:
+        # Keep this run's workspace alive until its media bytes are collected.
+        exit_code, raw = subscriptions.run_bounded(command, env, timeout=600,
+            prompt_text=instruction + json.dumps(prompt), workdir=work, capture_exit=True)
+        result = collect_media(raw, exit_code, kind, sessions, Path(work), session_id)
     return {'created': int(time.time()), 'model': 'grok/default', 'authentication': 'official_cli_oauth',
             'account_entitlement': 'request_succeeded', 'data': [result]}
+
+
+def output_paths(value, depth=0):
+    """Only call on a successful native tool's output, never model text/input."""
+    if depth > 10:
+        return []
+    if isinstance(value, str):
+        try:
+            return output_paths(json.loads(value), depth + 1)
+        except ValueError:
+            return []
+    if isinstance(value, list):
+        return [p for item in value for p in output_paths(item, depth + 1)]
+    if isinstance(value, dict):
+        paths = [Path(value['path'])] if isinstance(value.get('path'), str) and value['path'] else []
+        return paths + [p for key, item in value.items() if key != 'path' for p in output_paths(item, depth + 1)]
+    return []
+
+
+def collect_media(raw, exit_code, kind, sessions, workspace, session_id):
+    required = 'image_to_video' if kind == 'video' else 'image_gen'
+    names, statuses, call_paths = {}, {}, {}
+    available = None
+    end_seen = False
+    malformed = 0
+    stop = 'unknown'
+    for line in raw.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            malformed += 1
+            continue
+        if not isinstance(event, dict):
+            malformed += 1
+            continue
+        event_type = event.get('type')
+        if not isinstance(event_type, str):
+            malformed += 1
+            continue
+        if event_type == 'available_commands' and isinstance(event.get('tools'), list):
+            available = required in event['tools']
+        if event_type == 'tool_call':
+            call_id = event.get('toolCallId')
+            if isinstance(call_id, str):
+                name = event.get('toolName')
+                names[call_id] = name if name in ('image_gen', 'image_to_video') else 'other'
+                statuses[call_id] = event.get('status')
+        if event_type == 'tool_call_update':
+            call_id = event.get('toolCallId')
+            if isinstance(call_id, str) and call_id in names:
+                if event.get('status'):
+                    statuses[call_id] = event['status']
+                call_paths.setdefault(call_id, []).extend(output_paths(event.get('rawOutput')) + output_paths(event.get('content')))
+        if event_type == 'end':
+            end_seen = True
+            reason = event.get('stopReason')
+            if reason in ('end_turn', 'max_tokens', 'max_turn_requests', 'refusal', 'cancelled'):
+                stop = reason
+    called = any(name == required for name in names.values())
+    completed = any(name == required and statuses.get(cid) == 'completed' for cid, name in names.items())
+    failed = any(name == required and statuses.get(cid) == 'failed' for cid, name in names.items())
+    # Only this request's workspace or UUID-scoped session can supply files.
+    def trusted_root(path):
+        if not path.is_absolute():
+            path = workspace / path
+        if path.is_relative_to(workspace):
+            return path, workspace
+        if path.is_relative_to(sessions) and session_id in path.relative_to(sessions).parts[:-1]:
+            return path, sessions
+        return None
+    suffixes = ('.mp4',) if kind == 'video' else ('.jpg', '.jpeg', '.png', '.webp')
+    candidates = {}
+    if completed:
+        paths = [path for cid, items in call_paths.items() if names.get(cid) == required and statuses.get(cid) == 'completed' for path in items]
+        discovered = paths + list(snapshot(workspace))
+        if sessions.exists():
+            # CLI persists under sessions/<encoded-cwd>/<session-id>/... .
+            discovered += [p for p in snapshot(sessions) if session_id in p.relative_to(sessions).parts[:-1]]
+        for path in discovered:
+            accepted = trusted_root(path)
+            if accepted and accepted[0].suffix.lower() in suffixes and accepted[0].exists():
+                candidates[accepted[0]] = accepted[1]
+    diagnostic = {'version': 1, 'kind': kind, 'phase': 'finished', 'exit_code': exit_code,
+        'requested_tool': required, 'tool_advertised': available, 'tool_called': called,
+        'tool_completed': completed, 'tool_failed': failed, 'end_seen': end_seen,
+        'stop_reason': stop, 'malformed_lines': malformed, 'candidate_count': len(candidates)}
+    # Whitelisted booleans/counts only. No prompt, model text, token, URL, or path.
+    app.save_secret('media-diagnostic.json', json.dumps(diagnostic, indent=2))
+    if len(candidates) == 1:
+        path, root = next(iter(candidates.items()))
+        return read_artifact(path, root, kind)
+    if len(candidates) > 1:
+        raise app.Failure(502, 'media_multiple_artifacts')
+    if malformed and not names:
+        raise app.Failure(502, 'media_cli_stream_format_unsupported')
+    if available is False and not called:
+        raise app.Failure(502, 'media_cli_tool_not_available')
+    if not called:
+        raise app.Failure(502, 'media_cli_tool_not_called')
+    if failed:
+        raise app.Failure(502, 'media_cli_tool_failed')
+    if not completed:
+        raise app.Failure(502, 'media_cli_tool_not_completed')
+    raise app.Failure(502, 'media_cli_output_file_not_found')
