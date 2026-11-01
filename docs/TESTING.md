@@ -1,3 +1,11 @@
+# Antigravity 共用擴充離線檢查
+
+Python 71/71 通過。先前 any(value.values()) 與 any(plugins.iterdir()) 會誤擋空 hooks envelope、官方 enabled:false hooks／disabled:true MCP，以及 .DS_Store 等惰性檔案。新增 schema-aware 計數與離線腳本，不輸出設定值，也不執行 CLI 或生成。
+
+測試包含 active 項停止於 CLI 前、未知／畸形／過大／symlink 設定仍阻擋、plugin 雜項與候選目錄區分、共用檔不修改、診斷不含秘密。真實使用者這次阻擋來自哪一類尚待其本機摘要；不宣稱已完成 Gemini 生圖修復。
+
+以下保留歷史記錄。
+
 # Gemini 生圖不再要求全域 strict
 
 Python 64/64 通過。新增缺少／預設／非 strict 全域設定下的生圖本次覆蓋、全域設定不變、原 permissions 規則保留、0600 暫存設定檔、API／Cloud／共享 hook 拒絕、損毀設定拒絕及文字仍要求 strict。舊 CLI 在缺少全域設定時也必須通過 --settings 支援檢查，不會退回全域權限。

@@ -54,7 +54,7 @@ python3 -m gateway.app login --provider grok
 python3 -m gateway.app login --provider gemini
 ```
 
-Google 登入使用綁定 Ultra 的個人帳號。文字路由需在 agy `/config` 設 **Tool Permission = strict**，然後 `/quit`；生圖路由使用本次設定覆蓋，不要求更改全域權限。這是 agy 共用設定，會影響其他 agy sessions；Gateway 不會替你修改。若有全域 hooks／MCP／plugins，會要求先審查並暫停接入，詳見 [遷移指南](docs/ANTIGRAVITY.md)。
+Google 登入使用綁定 Ultra 的個人帳號。文字路由需在 agy `/config` 設 **Tool Permission = strict**，然後 `/quit`；生圖路由使用本次設定覆蓋，不要求更改全域權限。這是 agy 共用設定，會影響其他 agy sessions；Gateway 不會替你修改。全域 hooks／MCP／plugins 會先做去敏檢查；空設定、明確停用的 hooks／MCP 與 plugins 雜項檔案不再誤擋。碰到 shared_extensions_require_review 時先執行 `python3 scripts/antigravity-diagnostic.py`，不會啟動 CLI 或生成；詳見 [訂閱生圖指南](docs/SUBSCRIPTION-IMAGES.md)。
 
 ```bash
 python3 -m gateway.app serve
@@ -121,7 +121,7 @@ python3 -m unittest discover -s tests -v
 node tests/chatgpt.test.mjs
 ```
 
-目前 Python 64 項與 Node 3 項程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT Plus 訂閱生圖也已由使用者回報成功，Gemini Ultra 仍待帳號端到端驗證。
+目前 Python 71 項與 Node 3 項程式測試通過。使用者回報 Grok CLI 圖片與影片生成成功；GPT Plus 訂閱生圖也已由使用者回報成功，Gemini Ultra 仍待帳號端到端驗證。
 
 - [Plus／Ultra 訂閱生圖](docs/SUBSCRIPTION-IMAGES.md)
 - [Google Ultra / Antigravity 修正](docs/ANTIGRAVITY.md)

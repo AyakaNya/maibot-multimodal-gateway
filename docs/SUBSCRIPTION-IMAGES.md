@@ -116,3 +116,29 @@ python3 scripts/media-poc.py --provider chatgpt --kind image --prompt '白色桌
 原有 permissions.allow／ask／deny 全數保留，再附加 command／MCP／web deny。覆蓋設定放在本次 0700 工作目錄下的 0600 暫存檔，透過 --settings 檔案路徑傳入，不將私人規則寫入程序參數。舊 CLI 不支援 --settings 時仍在生成前拒絕；個人帳號、API／Cloud 設定與共享擴充檢查不變。
 
 停止舊 Gateway，git pull --ff-only，再用 python3 -m gateway.app serve 重啟；另開終端執行原 Gemini 圖片 PoC 即可。64 項 Python 測試通過；這確認 Gateway 設定誤擋已修正，不代表 Ultra 上游生成已實測成功。
+
+
+## Gemini 的 shared_extensions_require_review
+
+這是 Gateway 的本機前置檢查，不是 Google 權限或額度錯誤；在此階段沒有執行生圖。舊版只檢查 JSON 外層是否非空、plugins 目錄有無任何項目，會誤擋空 hooks 事件清單、已停用 hooks／MCP 及 .DS_Store 等檔案。
+
+新版依 [官方 hooks 格式](https://antigravity.google/docs/hooks?tab=cli)辨識 named hook groups 的 enabled:false，以及 [官方 MCP 格式](https://antigravity.google/docs/mcp?tab=cli)的 disabled:true；也接受空的相容 hooks envelope。停用項保留設定，不會刪除或改寫。plugins 中的 .DS_Store、README／LICENSE、.gitignore 與空目錄不算已啟用擴充。非空 plugin 目錄仍列為待審候選，並不宣稱已判定它是 enabled；停用 plugin 但保留目錄也可能仍列為候選。
+
+更新後先直接執行離線檢查，不需重啟 Gateway、登入或再生成：
+
+```bash
+git pull --ff-only
+python3 scripts/antigravity-diagnostic.py
+```
+
+輸出只含 global_hooks／global_mcp／global_plugins 的固定狀態與數量，不含自訂 hook／server／plugin 名稱、命令、環境變數、URL、headers、token 或設定值。只讀三處共用設定，不讀登入檔，也不執行 agy、hooks 或 MCP。新版生成前的錯誤診斷也會帶 extension_checks。
+
+- review_required:false：本次掃描未發現需審查的共用擴充；這不是 Google 帳號生圖授權的證明。可重啟 Gateway 再執行一次 Gemini 圖片 PoC。
+- global_hooks 的 enabled_handler_count > 0：有會被載入的 hook handler。官方 hooks 可在 SessionStart 執行命令，發生在模型工具權限檢查之前；不能只靠 mcp／command deny 假設它不會執行。
+- global_mcp 的 enabled_server_count > 0：有未明確停用的 MCP server，連線時可能啟動本機程序。可以先在本機 agy 的 MCP 管理介面檢視；不要為了生圖清空所有設定。
+- global_plugins 的 candidate_count > 0：有非空 plugin 目錄，尚未獨立確認其啟用狀態與內容。原生 agy plugin list --json 可在使用者本機查看，但不要分享整份輸出，可能包含私人名稱與路徑。
+- unknown_entry_count > 0 或 invalid／unreadable／symlink：未知格式或不能安全檢查，仍明確停止；先分享去敏摘要再決定下一步。
+
+本輪未找到已驗證的「僅本次停用全部共用 hooks／plugins」CLI 選項，因此沒有把 settings.json 的 hooks:{} 當成停用開關（官方 schema 明確表示該欄位不會被 CLI 載入），也沒有搬移／覆寫使用者共用設定。真正的執行項仍待實際本機摘要確認，並非宣稱這次生成失敗已解決。
+
+Python 71/71 測試通過，涵蓋空／停用／啟用項、畸形或過大檔案、symlink 拒絕、雜項檔案、不輸出私人欄位、擋下時不執行 CLI、允許時使用原生圖片 session 且共用設定位元組不變。離線腳本亦已在雲端執行確認輸出合約；使用者的真實共用設定仍待本機結果。

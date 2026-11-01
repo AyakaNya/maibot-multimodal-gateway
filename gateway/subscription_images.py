@@ -85,7 +85,9 @@ def generate(body):
     except app.Failure as error:
         # Nested parsers may have already saved a more specific failure summary.
         if error.status in (503, 504):
-            diagnostic(provider, phase='unavailable', error_code=error.code)
+            from gateway.antigravity_preflight import ExtensionReviewRequired
+            fields = {'extension_checks': error.checks} if isinstance(error, ExtensionReviewRequired) else {}
+            diagnostic(provider, phase='unavailable', error_code=error.code, **fields)
         raise
     return {'created': int(time.time()), 'model': provider + '/default',
             'authentication': 'official_codex_chatgpt_login' if provider == 'chatgpt' else 'official_antigravity_personal_login',

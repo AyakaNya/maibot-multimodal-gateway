@@ -26,17 +26,10 @@ def checked_settings(*, require_strict=True):
     # custom providers / enterprise project routing, rather than silently billing.
     if settings.get('modelProvider') or settings.get('gcp') or settings.get('customModelsConfig'):
         raise app.Failure(503, 'antigravity_requires_personal_account_auth')
-    for file in (base / 'config/hooks.json', base / 'config/mcp_config.json'):
-        if file.exists():
-            try:
-                value = json.loads(file.read_text())
-            except (OSError, ValueError):
-                raise app.Failure(503, 'antigravity_shared_extensions_require_review') from None
-            if not isinstance(value, dict) or any(value.values()):
-                raise app.Failure(503, 'antigravity_shared_extensions_require_review')
-    plugins = base / 'config/plugins'
-    if plugins.exists() and any(plugins.iterdir()):
-        raise app.Failure(503, 'antigravity_shared_extensions_require_review')
+    from gateway.antigravity_preflight import ExtensionReviewRequired, shared_extensions_report
+    report = shared_extensions_report()
+    if report['review_required']:
+        raise ExtensionReviewRequired(report['checks'])
     return settings
 
 
